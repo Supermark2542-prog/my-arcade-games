@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Math Defender - ภารกิจคณิตพิชิตอุกกาบาต</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a; /* Slate 900 */
+            touch-action: none; /* Prevent scrolling on mobile */
+        }
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: absolute;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to UI elements specifically */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        /* Glassmorphism panels */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        /* Custom Numpad buttons */
+        .numpad-btn {
+            background: linear-gradient(145deg, #334155, #1e293b);
+            color: white;
+            border: 2px solid #475569;
+            border-radius: 12px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #0f172a;
+            transition: all 0.1s;
+        }
+        .numpad-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #0f172a;
+            background: #475569;
+        }
+        .action-btn {
+            background: linear-gradient(145deg, #10b981, #059669);
+            border-color: #34d399;
+            box-shadow: 0 4px 0 #064e3b;
+        }
+        .action-btn:active {
+            box-shadow: 0 0 0 #064e3b;
+            background: #059669;
+        }
+        .del-btn {
+            background: linear-gradient(145deg, #ef4444, #dc2626);
+            border-color: #f87171;
+            box-shadow: 0 4px 0 #7f1d1d;
+        }
+        .del-btn:active {
+            box-shadow: 0 0 0 #7f1d1d;
+            background: #dc2626;
+        }
+
+        /* Screen transitions */
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+            background: rgba(0,0,0,0.8);
+        }
+        .screen.active {
+            display: flex;
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px #f59e0b, 0 0 30px #f59e0b;
+        }
+    </style>
+</head>
+<body class="text-white selection:bg-none">
+
+    <!-- Canvas for rendering game graphics -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Layer overlay -->
+    <div class="ui-layer">
+        
+        <!-- Header HUD (Score & Lives) -->
+        <div id="hud" class="hidden interactive flex justify-between items-start p-2 md:p-6 w-full max-w-5xl mx-auto">
+            <!-- Left: Home & Score -->
+            <div class="flex items-center gap-2">
+                <button onclick="quitToMenu()" class="glass-panel px-3 py-2 md:px-4 md:py-2 rounded-xl flex items-center justify-center hover:bg-red-500/40 border border-slate-500 hover:border-red-400 transition shadow-lg cursor-pointer" title="กลับหน้าหลัก">
+                    <span class="text-xl md:text-2xl">🏠</span>
+                </button>
+                <div class="glass-panel px-3 py-2 md:px-4 md:py-2 rounded-xl flex items-center gap-2 md:gap-3">
+                    <span class="text-yellow-400 text-xl md:text-2xl">⭐</span>
+                    <div>
+                        <div class="text-[10px] md:text-xs text-gray-300 uppercase tracking-wide">คะแนน</div>
+                        <div id="scoreDisplay" class="text-lg md:text-2xl font-bold font-mono">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wave Display -->
+            <div class="glass-panel px-3 py-2 md:px-4 md:py-2 rounded-xl flex items-center gap-2 md:gap-3">
+                <span class="text-cyan-400 text-xl md:text-2xl">🌊</span>
+                <div>
+                    <div class="text-[10px] md:text-xs text-gray-300 uppercase tracking-wide">เวฟ</div>
+                    <div id="waveDisplay" class="text-lg md:text-2xl font-bold font-mono">1</div>
+                </div>
+            </div>
+                
+            <!-- Lives Display -->
+            <div class="glass-panel px-3 py-2 md:px-4 md:py-2 rounded-xl flex items-center gap-1 md:gap-2" id="livesDisplay">
+                <span class="text-red-500 text-xl md:text-2xl">❤️</span>
+                <span class="text-red-500 text-xl md:text-2xl">❤️</span>
+                <span class="text-red-500 text-xl md:text-2xl">❤️</span>
+            </div>
+        </div>
+
+        <!-- Input Area (Bottom Right) -->
+        <div id="inputArea" class="hidden interactive absolute bottom-6 right-6 md:bottom-10 md:right-10 flex flex-col items-end w-64 md:w-80">
+            <!-- Current Input Display -->
+            <div class="glass-panel w-full mb-3 rounded-2xl flex items-center justify-between p-3 md:p-4 border-2 border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-slate-900/90">
+                <div class="text-gray-400 font-semibold pl-2 text-sm md:text-base">คำตอบ:</div>
+                <div id="answerInput" class="text-3xl md:text-4xl font-bold text-cyan-300 min-w-[100px] text-right font-mono tracking-wider h-10 md:h-12 flex items-center justify-end"></div>
+            </div>
+            
+            <!-- คำแนะนำการกด Enter -->
+            <div class="text-xs md:text-sm text-gray-300 bg-slate-800/90 px-4 py-2 rounded-full border border-slate-600 shadow-lg text-right backdrop-blur-md">
+                พิมพ์คำตอบแล้วกด <kbd class="bg-slate-700 px-2 py-1 rounded text-cyan-300 font-mono font-bold">Enter 🚀</kbd>
+            </div>
+        </div>
+
+    <!-- Wave Announcement -->
+    <div id="waveAnnouncement" class="opacity-0 pointer-events-none absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 text-center transition-opacity duration-500">
+        <h2 id="waveText" class="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 drop-shadow-[0_0_20px_rgba(253,224,71,0.8)] glow-text">WAVE 1</h2>
+    </div>
+
+    <!-- Start Menu -->
+    <div id="startScreen" class="screen interactive active z-50 absolute top-0 left-0">
+        <div class="glass-panel p-8 rounded-3xl max-w-md w-11/12 text-center relative overflow-hidden">
+            <div class="absolute -top-10 -left-10 w-32 h-32 bg-cyan-500 rounded-full mix-blend-multiply filter blur-2xl opacity-50"></div>
+            <div class="absolute -bottom-10 -right-10 w-32 h-32 bg-purple-500 rounded-full mix-blend-multiply filter blur-2xl opacity-50"></div>
+            
+            <h1 class="text-4xl md:text-5xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Math Defender</h1>
+            <p class="text-yellow-400 font-semibold mb-6">ภารกิจคณิตพิชิตอุกกาบาต</p>
+            
+            <p class="text-gray-300 text-sm mb-6">เลือกช่วงชั้นเพื่อกำหนดความยากของโจทย์คณิตศาสตร์</p>
+
+            <div class="grid grid-cols-2 gap-3 mb-8">
+                <button onclick="startGame(1)" class="py-3 bg-slate-700 hover:bg-cyan-600 rounded-xl border border-slate-600 hover:border-cyan-400 transition font-bold shadow-lg text-lg">ป.1 (บวก/ลบง่าย)</button>
+                <button onclick="startGame(2)" class="py-3 bg-slate-700 hover:bg-cyan-600 rounded-xl border border-slate-600 hover:border-cyan-400 transition font-bold shadow-lg text-lg">ป.2 (เลข 2 หลัก)</button>
+                <button onclick="startGame(3)" class="py-3 bg-slate-700 hover:bg-cyan-600 rounded-xl border border-slate-600 hover:border-cyan-400 transition font-bold shadow-lg text-lg">ป.3 (เลข 3 หลัก)</button>
+                <button onclick="startGame(4)" class="py-3 bg-slate-700 hover:bg-cyan-600 rounded-xl border border-slate-600 hover:border-cyan-400 transition font-bold shadow-lg text-lg">ป.4 (เลขหลักพัน)</button>
+                <button onclick="startGame(5)" class="py-3 bg-slate-700 hover:bg-purple-600 rounded-xl border border-slate-600 hover:border-purple-400 transition font-bold shadow-lg text-lg text-yellow-300">ป.5 (ทศนิยม)</button>
+                <button onclick="startGame(6)" class="py-3 bg-slate-700 hover:bg-purple-600 rounded-xl border border-slate-600 hover:border-purple-400 transition font-bold shadow-lg text-lg text-yellow-300">ป.6 (โจทย์ผสม)</button>
+            </div>
+            
+            <div class="text-xs text-gray-400 bg-black bg-opacity-30 p-3 rounded-lg">
+                💡 <b>วิธีเล่น:</b> พิมพ์คำตอบด้วย <b>แป้นคีย์บอร์ดตัวเลข (Numpad)</b> แล้วกด Enter เพื่อยิงจรวดป้องกันฐานทัพ!
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="screen interactive z-50 absolute top-0 left-0">
+        <div class="glass-panel p-8 rounded-3xl max-w-sm w-11/12 text-center border-red-500">
+            <div class="text-6xl mb-4">💥</div>
+            <h2 class="text-4xl font-extrabold text-red-500 mb-2">ฐานทัพพังทลาย!</h2>
+            <p class="text-gray-300 mb-6">คุณทำได้ดีมาก พยายามใหม่อีกครั้งนะ</p>
+            
+            <div class="bg-slate-800 p-4 rounded-xl mb-6">
+                <div class="text-sm text-gray-400 mb-1">คะแนนที่ได้</div>
+                <div id="finalScore" class="text-5xl font-bold text-yellow-400 font-mono">0</div>
+            </div>
+
+            <button onclick="showMenu()" class="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 rounded-xl font-bold text-xl shadow-lg transition transform hover:scale-105">
+                กลับเมนูหลัก 🏠
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const hud = document.getElementById('hud');
+        const inputArea = document.getElementById('inputArea');
+        const answerInputDisplay = document.getElementById('answerInput');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const livesDisplay = document.getElementById('livesDisplay');
+        const waveDisplay = document.getElementById('waveDisplay');
+        const waveAnnouncement = document.getElementById('waveAnnouncement');
+        const waveText = document.getElementById('waveText');
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let lives = 3;
+        let currentGrade = 1;
+        let currentInput = "";
+        
+        // Bonus State
+        let isFrozen = false;
+        let freezeTimeout = null;
+        
+        // Wave System Variables
+        let currentWave = 1;
+        let meteorsSpawnedThisWave = 0;
+        let isWaveTransitioning = false;
+        let lastSpawnTime = 0;
+
+        // --- Constraints Configuration (เพิ่มเวลา 2 เท่า) ---
+        const gradeConstraints = {
+            1: { maxOnScreen: 1, fallTimeSec: 20, cooldownMs: 2500, problemsPerWave: 5 },
+            2: { maxOnScreen: 2, fallTimeSec: 18, cooldownMs: 2000, problemsPerWave: 7 },
+            3: { maxOnScreen: 2, fallTimeSec: 16, cooldownMs: 2000, problemsPerWave: 10 },
+            4: { maxOnScreen: 3, fallTimeSec: 14, cooldownMs: 1500, problemsPerWave: 12 },
+            5: { maxOnScreen: 3, fallTimeSec: 12, cooldownMs: 1500, problemsPerWave: 15 },
+            6: { maxOnScreen: 4, fallTimeSec: 10, cooldownMs: 1200, problemsPerWave: 20 }
+        };
+        
+        // Entities arrays
+        let stars = [];
+        let meteors = [];
+        let rockets = [];
+        let particles = [];
+        let answerTexts = []; // Texts floating up after explosion
+
+        const soundManager = {
+            isReady: false,
+            bgmSeq: null,
+            synths: {},
+            
+            async init() {
+                if (this.isReady) return;
+                await Tone.start();
+                
+                // Laser Synth (High pitch blip)
+                this.synths.laser = new Tone.Synth({
+                    oscillator: { type: 'square' },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.0, release: 0.01 }
+                }).toDestination();
+                this.synths.laser.volume.value = -12;
+
+                // Explosion Synth (Noise)
+                this.synths.explosion = new Tone.NoiseSynth({
+                    noise: { type: 'brown' },
+                    envelope: { attack: 0.01, decay: 0.4, sustain: 0 }
+                }).toDestination();
+                this.synths.explosion.volume.value = -10;
+
+                // Wrong Answer Synth (Dissonant)
+                this.synths.wrong = new Tone.PolySynth(Tone.Synth).toDestination();
+                this.synths.wrong.volume.value = -12;
+                
+                // Damage Synth (Deep Thud)
+                this.synths.damage = new Tone.MembraneSynth().toDestination();
+                this.synths.damage.volume.value = -2;
+
+                // Powerup Synth (Magical Chime)
+                this.synths.powerup = new Tone.PolySynth(Tone.Synth).toDestination();
+                this.synths.powerup.volume.value = -5;
+
+                // Wave Up Synth (Chime)
+                this.synths.wave = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: 'sine' }
+                }).toDestination();
+                this.synths.wave.volume.value = -10;
+
+                // Background Music (8-bit style Arpeggio)
+                this.synths.bgm = new Tone.FMSynth({
+                    harmonicity: 2,
+                    modulationIndex: 1,
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.5 }
+                }).toDestination();
+                this.synths.bgm.volume.value = -25; // Keep it low
+
+                const notes = ["C3", "E3", "G3", "B3", "C4", "B3", "G3", "E3"];
+                let step = 0;
+                this.bgmSeq = new Tone.Loop((time) => {
+                    this.synths.bgm.triggerAttackRelease(notes[step % notes.length], "16n", time);
+                    step++;
+                }, "8n");
+                
+                Tone.Transport.bpm.value = 120;
+                this.isReady = true;
+            },
+
+            startBGM() {
+                if (!this.isReady) return;
+                Tone.Transport.start();
+                this.bgmSeq.start(0);
+            },
+
+            stopBGM() {
+                if (!this.isReady) return;
+                this.bgmSeq.stop();
+                Tone.Transport.stop();
+            },
+
+            playShoot() {
+                if (!this.isReady) return;
+                this.synths.laser.triggerAttackRelease("C6", "32n");
+                setTimeout(() => { if(this.isReady) this.synths.laser.triggerAttackRelease("G5", "32n"); }, 40);
+            },
+
+            playExplosion() {
+                if (!this.isReady) return;
+                this.synths.explosion.triggerAttackRelease("8n");
+            },
+
+            playError() {
+                if (!this.isReady) return;
+                this.synths.wrong.triggerAttackRelease(["C3", "C#3"], "16n"); // Dissonant chord
+            },
+
+            playDamage() {
+                if (!this.isReady) return;
+                this.synths.damage.triggerAttackRelease("C1", "8n");
+            },
+
+            playPowerUp(type) {
+                if (!this.isReady) return;
+                if(type === 'freeze') this.synths.powerup.triggerAttackRelease(["C5", "E5", "G5"], "8n");
+                else if(type === 'bomb') this.synths.powerup.triggerAttackRelease(["C2", "G2"], "4n");
+                else if(type === 'heal') this.synths.powerup.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n");
+            },
+
+            playWaveUp() {
+                if (!this.isReady) return;
+                this.synths.wave.triggerAttackRelease(["C4", "E4", "G4", "C5"], "2n");
+            },
+
+            playGameOver() {
+                if (!this.isReady) return;
+                this.synths.wrong.triggerAttackRelease(["C3", "G2", "C2"], "1n");
+            }
+        };
+
+        // Resize Canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initStars();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Initialize Background Stars
+        function initStars() {
+            stars = [];
+            const numStars = Math.floor(canvas.width * canvas.height / 2000);
+            for(let i=0; i<numStars; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2 + 0.5,
+                    speed: Math.random() * 0.5 + 0.1,
+                    brightness: Math.random()
+                });
+            }
+        }
+
+        function drawStars() {
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            stars.forEach(star => {
+                star.y += star.speed;
+                if(star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+                
+                // Twinkle effect
+                star.brightness += (Math.random() - 0.5) * 0.1;
+                star.brightness = Math.max(0.2, Math.min(1, star.brightness));
+
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function generateMathProblem(grade) {
+            let num1, num2, num3, operator, text, answer;
+            let opRandom = Math.random();
+
+            switch(grade) {
+                case 1: // ป.1: +/- 1-2 หลัก ไม่เกิน 20
+                    if (opRandom > 0.5) {
+                        // บวก
+                        num1 = Math.floor(Math.random() * 10) + 1;
+                        num2 = Math.floor(Math.random() * 10) + 1;
+                        text = `${num1} + ${num2}`;
+                        answer = num1 + num2;
+                    } else {
+                        // ลบ
+                        let total = Math.floor(Math.random() * 15) + 5; // 5-20
+                        num2 = Math.floor(Math.random() * (total - 1)) + 1;
+                        num1 = total;
+                        text = `${num1} - ${num2}`;
+                        answer = num1 - num2;
+                    }
+                    break;
+                case 2: // ป.2: +/- 2 หลัก ไม่เกิน 100
+                    if (opRandom > 0.5) {
+                        num1 = Math.floor(Math.random() * 40) + 10;
+                        num2 = Math.floor(Math.random() * 40) + 10;
+                        text = `${num1} + ${num2}`;
+                        answer = num1 + num2;
+                    } else {
+                        num1 = Math.floor(Math.random() * 50) + 50; // 50-99
+                        num2 = Math.floor(Math.random() * 40) + 10; // 10-49
+                        text = `${num1} - ${num2}`;
+                        answer = num1 - num2;
+                    }
+                    break;
+                case 3: // ป.3: +/- 3 หลัก
+                    if (opRandom > 0.5) {
+                        num1 = Math.floor(Math.random() * 400) + 100;
+                        num2 = Math.floor(Math.random() * 400) + 100;
+                        text = `${num1} + ${num2}`;
+                        answer = num1 + num2;
+                    } else {
+                        num1 = Math.floor(Math.random() * 500) + 500;
+                        num2 = Math.floor(Math.random() * 400) + 100;
+                        text = `${num1} - ${num2}`;
+                        answer = num1 - num2;
+                    }
+                    break;
+                case 4: // ป.4: +/- หลักพัน
+                    if (opRandom > 0.5) {
+                        num1 = Math.floor(Math.random() * 4000) + 1000;
+                        num2 = Math.floor(Math.random() * 4000) + 1000;
+                        text = `${num1} + ${num2}`;
+                        answer = num1 + num2;
+                    } else {
+                        num1 = Math.floor(Math.random() * 5000) + 5000;
+                        num2 = Math.floor(Math.random() * 4000) + 1000;
+                        text = `${num1} - ${num2}`;
+                        answer = num1 - num2;
+                    }
+                    break;
+                case 5: // ป.5: ทศนิยม 1-2 ตำแหน่ง
+                    if (opRandom > 0.5) {
+                        num1 = parseFloat((Math.random() * 10).toFixed(1));
+                        num2 = parseFloat((Math.random() * 10).toFixed(1));
+                        text = `${num1} + ${num2}`;
+                        answer = Math.round((num1 + num2) * 10) / 10;
+                    } else {
+                        num1 = parseFloat((Math.random() * 10 + 10).toFixed(1));
+                        num2 = parseFloat((Math.random() * 10).toFixed(1));
+                        text = `${num1} - ${num2}`;
+                        answer = Math.round((num1 - num2) * 10) / 10;
+                    }
+                    break;
+                case 6: // ป.6: ผสมหรือบวกลบ 3 จำนวน
+                    num1 = Math.floor(Math.random() * 50) + 10;
+                    num2 = Math.floor(Math.random() * 30) + 10;
+                    num3 = Math.floor(Math.random() * 20) + 5;
+                    if (opRandom > 0.6) {
+                        text = `${num1} + ${num2} + ${num3}`;
+                        answer = num1 + num2 + num3;
+                    } else if (opRandom > 0.3) {
+                        text = `${num1} + ${num2} - ${num3}`;
+                        answer = num1 + num2 - num3;
+                    } else {
+                        text = `${num1} - ${num3} + ${num2}`;
+                        answer = num1 - num3 + num2;
+                    }
+                    break;
+                default:
+                    text = "1+1"; answer = 2;
+            }
+            return { text, answer: answer.toString() };
+        }
+
+        // Lane System (5 เลน) ป้องกันอุกกาบาตทับซ้อน
+        function getRandomLaneX(radius) {
+            const lanes = [0.15, 0.325, 0.5, 0.675, 0.85];
+            let availableLanes = lanes.filter(laneMult => {
+                let lx = canvas.width * laneMult;
+                let occupied = meteors.some(m => Math.abs(m.x - lx) < canvas.width*0.15 && m.y < 250);
+                return !occupied;
+            });
+            
+            if (availableLanes.length === 0) availableLanes = lanes;
+            let chosenLane = availableLanes[Math.floor(Math.random() * availableLanes.length)];
+            
+            // จำกัดให้อยู่ในหน้าจอ
+            let x = canvas.width * chosenLane;
+            x = Math.max(radius, Math.min(canvas.width - radius, x));
+            return x;
+        }
+
+        function spawnMeteorCheck() {
+            if (!isPlaying || isWaveTransitioning) return;
+            
+            const constraint = gradeConstraints[currentGrade];
+            
+            // เช็คว่าปล่อยหมด Wave หรือยัง
+            if (meteorsSpawnedThisWave >= constraint.problemsPerWave) {
+                if (meteors.length === 0) {
+                    startWaveTransition();
+                }
+                return; 
+            }
+
+            const now = Date.now();
+            let currentMaxOnScreen = constraint.maxOnScreen + Math.floor((currentWave - 1) / 2); 
+            if(currentMaxOnScreen > 5) currentMaxOnScreen = 5;
+
+            let currentCooldown = constraint.cooldownMs - (currentWave * 100);
+            if(currentCooldown < 800) currentCooldown = 800;
+
+            if (meteors.length < currentMaxOnScreen && (now - lastSpawnTime > currentCooldown)) {
+                // สุ่มขนาดให้ใหญ่ขึ้นและหลากหลาย (1 ถึง 1.8 เท่าของขนาดเดิม)
+                const baseRadius = canvas.width > 600 ? 55 : 45;
+                const radius = baseRadius + (Math.random() * baseRadius * 0.8);
+                
+                let x = getRandomLaneX(radius);
+                let y = -radius;
+                
+                const problem = generateMathProblem(currentGrade);
+                
+                // --- Power-up System ---
+                let type = 'normal';
+                let icon = '';
+                let glow = 'transparent';
+                let bodyColor = '#475569';
+                let craterColor = '#334155';
+                
+                const rand = Math.random();
+                // มีโอกาส 15% ที่จะเกิดไอเทมพิเศษ (เริ่มตั้งแต่ Wave 2)
+                const hasPowerup = meteors.some(m => m.type !== 'normal');
+                if (!hasPowerup && rand < 0.15 && currentWave >= 2) {
+                    const typeRand = Math.random();
+                    if (typeRand < 0.33) { 
+                        type = 'freeze'; icon = '❄️'; glow = '#00ffff'; bodyColor = '#00ffff'; craterColor = '#00aaaa'; 
+                    }
+                    else if (typeRand < 0.66) { 
+                        type = 'bomb'; icon = '💣'; glow = '#ff5500'; bodyColor = '#ff5500'; craterColor = '#aa3300'; 
+                    }
+                    else if (lives < 3) { 
+                        type = 'heal'; icon = '❤️'; glow = '#00ff00'; bodyColor = '#00ff00'; craterColor = '#00aa00'; 
+                    }
+                    else {
+                        // ถ้าเลือดเต็ม 3 ดวงอยู่แล้ว ให้สุ่มเป็นระเบิดแทน เพื่อไม่ให้เสียโอกาสโบนัส
+                        type = 'bomb'; icon = '💣'; glow = '#ff5500'; bodyColor = '#ff5500'; craterColor = '#aa3300';
+                    }
+                }
+
+                // คำนวณความเร็ว (อิงจากความสูงจอ เพื่อให้เวลาตกเท่ากับ fallTimeSec)
+                let timeFactor = Math.pow(0.95, currentWave - 1); 
+                // เร็วสุด 6 วิถึงพื้น
+                let actualFallTime = Math.max(constraint.fallTimeSec * timeFactor, 6); 
+                let speed = (canvas.height + radius*2) / (actualFallTime * 60);
+                
+                meteors.push({
+                    x, y, radius, speed,
+                    text: problem.text,
+                    answer: problem.answer,
+                    targeted: false,
+                    rotation: Math.random() * Math.PI * 2,
+                    spinRate: (Math.random() - 0.5) * 0.02,
+                    type: type,
+                    icon: icon,
+                    glow: glow,
+                    bodyColor: bodyColor,
+                    craterColor: craterColor
+                });
+
+                meteorsSpawnedThisWave++;
+                lastSpawnTime = now;
+            }
+        }
+
+        function startWaveTransition() {
+            isWaveTransitioning = true;
+            currentWave++;
+            updateHUD();
+            
+            soundManager.playWaveUp();
+            
+            waveText.innerText = `WAVE ${currentWave}`;
+            waveAnnouncement.classList.remove('opacity-0');
+            waveAnnouncement.classList.add('opacity-100');
+            
+            // พักจอ 3 วินาที ก่อนเริ่ม Wave ถัดไป
+            setTimeout(() => {
+                waveAnnouncement.classList.remove('opacity-100');
+                waveAnnouncement.classList.add('opacity-0');
+                meteorsSpawnedThisWave = 0;
+                isWaveTransitioning = false;
+                lastSpawnTime = Date.now();
+            }, 3000);
+        }
+
+        // Particle System for Explosions
+        function createExplosion(x, y, answerText, glowColor = null) {
+            // Debris particles
+            for(let i=0; i<20; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    radius: Math.random() * 4 + 1,
+                    color: glowColor || (Math.random() > 0.5 ? '#f97316' : '#ef4444'), // Orange/Red or Powerup Color
+                    life: 1.0,
+                    decay: Math.random() * 0.02 + 0.015
+                });
+            }
+            // Flash particle
+            particles.push({
+                x: x, y: y, vx:0, vy:0, radius: 20, color: glowColor || '#fef08a',
+                life: 1.0, decay: 0.1, isFlash: true
+            });
+
+            // Golden Answer Text Floating up
+            answerTexts.push({
+                x: x, y: y, text: answerText, life: 1.0, decay: 0.01, vy: -1, color: glowColor
+            });
+        }
+
+        function drawPlayerBase() {
+            // Draw a futuristic space cannon at bottom center
+            const bx = canvas.width / 2;
+            const by = canvas.height;
+            
+            // Shield dome / Energy glow
+            const gradient = ctx.createRadialGradient(bx, by, 20, bx, by, 120);
+            gradient.addColorStop(0, 'rgba(6, 182, 212, 0.4)'); // Cyan
+            gradient.addColorStop(1, 'rgba(6, 182, 212, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(bx, by, 120, Math.PI, 0);
+            ctx.fill();
+
+            // Turret Base (Heavy Armor)
+            ctx.fillStyle = '#1e293b'; // slate-800
+            ctx.beginPath();
+            ctx.moveTo(bx - 70, by);
+            ctx.lineTo(bx - 45, by - 45);
+            ctx.lineTo(bx + 45, by - 45);
+            ctx.lineTo(bx + 70, by);
+            ctx.fill();
+            
+            // Base Highlights & Stroke
+            ctx.strokeStyle = '#0284c7'; // sky-600
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Inner Rotating Mechanism / Core
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(bx, by - 35, 30, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = '#38bdf8'; // sky-400
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Core Energy
+            ctx.fillStyle = '#22d3ee'; // cyan-400
+            ctx.beginPath();
+            ctx.arc(bx, by - 35, 12, 0, Math.PI*2);
+            ctx.fill();
+
+            // Cannon Barrel
+            ctx.fillStyle = '#94a3b8'; // slate-400
+            ctx.fillRect(bx - 14, by - 90, 28, 60);
+            
+            // Barrel Details
+            ctx.fillStyle = '#334155'; // slate-700
+            ctx.fillRect(bx - 18, by - 70, 36, 12);
+            
+            // Energy Rails
+            ctx.fillStyle = '#06b6d4'; // cyan-500
+            ctx.fillRect(bx - 10, by - 90, 4, 45);
+            ctx.fillRect(bx + 6, by - 90, 4, 45);
+
+            // Cannon Tip / Emitter
+            ctx.shadowColor = '#22d3ee';
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#e0f2fe'; // sky-100
+            ctx.beginPath();
+            ctx.moveTo(bx - 14, by - 90);
+            ctx.lineTo(bx, by - 110);
+            ctx.lineTo(bx + 14, by - 90);
+            ctx.fill();
+            ctx.shadowBlur = 0; // Reset shadow
+        }
+
+        function drawEntities() {
+            // Draw Meteors
+            meteors.forEach(m => {
+                ctx.save();
+                ctx.translate(m.x, m.y);
+                ctx.rotate(m.rotation);
+                
+                if (m.type !== 'normal') {
+                    ctx.shadowColor = m.glow;
+                    ctx.shadowBlur = 25;
+                }
+
+                // Rock shape (octagon-ish)
+                ctx.fillStyle = m.bodyColor || '#475569'; // สีเปลี่ยนตามประเภทไอเทม
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i * Math.PI) / 4;
+                    ctx.lineTo(Math.cos(angle) * m.radius, Math.sin(angle) * m.radius);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.shadowBlur = 0; // ปิดเงาก่อนวาดหลุม
+                
+                // Crater
+                ctx.fillStyle = m.craterColor || '#334155';
+                ctx.beginPath();
+                ctx.arc(m.radius*0.3, -m.radius*0.3, m.radius*0.2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(-m.radius*0.2, m.radius*0.4, m.radius*0.15, 0, Math.PI*2);
+                ctx.fill();
+
+                // Target Outline
+                if(m.targeted) {
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                } else if (m.type !== 'normal') {
+                    // Power-up Glow effect แบบสว่างเห็นทั้งดวงและขอบสีขาว
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+
+                // Draw Icon if Power-up
+                if (m.type !== 'normal') {
+                    ctx.font = `${Math.max(25, m.radius * 0.6)}px Arial`;
+                    ctx.fillText(m.icon, m.x, m.y - m.radius - 20);
+                }
+
+                // ปรับขนาดตัวอักษรตามขนาดของอุกกาบาต (radius)
+                const fontSize = Math.floor(m.radius * 0.6); // ทำให้ตัวเลขใหญ่สัมพันธ์กับอุกกาบาต
+                ctx.font = `bold ${fontSize}px Kanit`;
+                
+                // วัดขนาดข้อความเพื่อวาดกรอบดำพื้นหลังให้พอดี
+                const textWidth = ctx.measureText(m.text).width;
+                const padding = 20;
+                const boxWidth = Math.max(textWidth + padding, m.radius * 1.2);
+                const boxHeight = fontSize + 16;
+
+                // Draw Text Panel on top of meteor (not rotating)
+                if (m.type === 'freeze') ctx.fillStyle = 'rgba(0, 150, 255, 0.9)';
+                else if (m.type === 'bomb') ctx.fillStyle = 'rgba(255, 80, 0, 0.9)';
+                else if (m.type === 'heal') ctx.fillStyle = 'rgba(0, 180, 0, 0.9)';
+                else ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                
+                ctx.beginPath();
+                ctx.roundRect(m.x - boxWidth/2, m.y - boxHeight/2, boxWidth, boxHeight, 8);
+                ctx.fill();
+
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(m.text, m.x, m.y + (fontSize * 0.05));
+            });
+
+            // Draw Rockets
+            rockets.forEach(r => {
+                ctx.save();
+                ctx.translate(r.x, r.y);
+                ctx.rotate(Math.atan2(r.vy, r.vx) + Math.PI/2);
+                
+                // Rocket Body
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(-4, -15, 8, 30);
+                // Nose
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(-4, -15);
+                ctx.lineTo(0, -25);
+                ctx.lineTo(4, -15);
+                ctx.fill();
+                // Flame
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.moveTo(-3, 15);
+                ctx.lineTo(0, 15 + Math.random()*15);
+                ctx.lineTo(3, 15);
+                ctx.fill();
+                
+                ctx.restore();
+            });
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.life);
+                if (p.isFlash) {
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius * (2-p.life), 0, Math.PI*2); // Expands
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Draw floating answers
+            answerTexts.forEach(a => {
+                ctx.globalAlpha = Math.max(0, a.life);
+                ctx.fillStyle = a.color || '#fbbf24'; // Amber 400 / Gold / Custom Color
+                ctx.font = `bold ${30 + (1-a.life)*20}px Kanit`; // Grows slightly
+                ctx.textAlign = 'center';
+                // Add glow
+                ctx.shadowColor = a.color || '#f59e0b';
+                ctx.shadowBlur = 15;
+                ctx.fillText(a.text, a.x, a.y);
+                ctx.shadowBlur = 0; // reset
+            });
+            ctx.globalAlpha = 1.0;
+            
+            // Draw Freeze Effect Overlay
+            if (isFrozen) {
+                ctx.fillStyle = 'rgba(6, 182, 212, 0.15)'; // Cyan screen tint
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#06b6d4';
+                ctx.font = 'bold 36px Kanit';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#0891b2';
+                ctx.shadowBlur = 20;
+                ctx.fillText('❄️ หยุดเวลา! ❄️', canvas.width / 2, 100);
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function gameLoop() {
+            if (!isPlaying) return;
+            
+            drawStars();
+            drawEntities();
+            drawPlayerBase();
+
+            // Spawn logic (เปลี่ยนมาใช้ระบบ Wave แทน)
+            spawnMeteorCheck();
+
+            // Update Meteors
+            for (let i = meteors.length - 1; i >= 0; i--) {
+                let m = meteors[i];
+                
+                // หยุดอุกกาบาตถ้าโดนแช่แข็ง
+                if (!isFrozen) {
+                    m.y += m.speed;
+                    m.rotation += m.spinRate;
+                }
+
+                // Hit ground
+                if (m.y + m.radius > canvas.height) {
+                    meteors.splice(i, 1);
+                    loseLife();
+                }
+            }
+
+            // Update Rockets
+            for (let i = rockets.length - 1; i >= 0; i--) {
+                let r = rockets[i];
+                
+                // Check if target exists
+                let target = meteors.find(m => m === r.targetObj);
+                if (target) {
+                    // Homing behavior
+                    let dx = target.x - r.x;
+                    let dy = target.y - r.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < target.radius + 15) {
+                        // Collision!
+                        soundManager.playExplosion();
+                        createExplosion(target.x, target.y, target.answer, target.type !== 'normal' ? target.glow : null);
+                        score += 10;
+                        updateHUD();
+                        
+                        // --- Power-up Effect Activation ---
+                        if (target.type !== 'normal') {
+                            soundManager.playPowerUp(target.type);
+                            if (target.type === 'freeze') {
+                                isFrozen = true;
+                                clearTimeout(freezeTimeout);
+                                freezeTimeout = setTimeout(() => { isFrozen = false; }, 5000); // แช่แข็ง 5 วินาที
+                                answerTexts.push({ x: target.x, y: target.y - 30, text: "แช่แข็ง!", life: 1.5, decay: 0.01, vy: -1.5, color: '#06b6d4' });
+                            } else if (target.type === 'bomb') {
+                                // ระเบิดลูกอื่นๆ ทั้งหมด
+                                meteors.forEach(otherM => {
+                                    if (otherM !== target) {
+                                        createExplosion(otherM.x, otherM.y, otherM.answer);
+                                        score += 10;
+                                    }
+                                });
+                                updateHUD();
+                                answerTexts.push({ x: canvas.width/2, y: canvas.height/2, text: "ระเบิดกวาดล้าง!", life: 1.5, decay: 0.01, vy: -0.5, color: '#f97316' });
+                                meteors = [target]; // เก็บลูกนี้ไว้เพื่อให้โค้ดด้านล่างลบทิ้งตัวมันเองอย่างสมบูรณ์
+                            } else if (target.type === 'heal') {
+                                lives = Math.min(lives + 1, 3);
+                                updateHUD();
+                                answerTexts.push({ x: target.x, y: target.y - 30, text: "+1 พลัง!", life: 1.5, decay: 0.01, vy: -1.5, color: '#22c55e' });
+                            }
+                        }
+                        
+                        // Remove meteor and rocket
+                        meteors = meteors.filter(m => m !== target);
+                        rockets.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // Move rocket towards target
+                    r.vx = (dx / dist) * r.speed;
+                    r.vy = (dy / dist) * r.speed;
+                } else {
+                    // Target lost (e.g. hit ground or destroyed by another rocket) - fly straight up
+                    r.vy = -r.speed;
+                    r.vx = 0;
+                }
+
+                r.x += r.vx;
+                r.y += r.vy;
+
+                // Remove if off screen
+                if (r.y < -50 || r.x < -50 || r.x > canvas.width + 50) {
+                    rockets.splice(i, 1);
+                }
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            // Update floating answers
+            for (let i = answerTexts.length - 1; i >= 0; i--) {
+                let a = answerTexts[i];
+                a.y += a.vy;
+                a.life -= a.decay;
+                if (a.life <= 0) answerTexts.splice(i, 1);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        async function startGame(grade) {
+            // Initialize Audio Context on user click
+            await soundManager.init();
+            soundManager.startBGM();
+
+            currentGrade = grade;
+            score = 0;
+            lives = 3;
+            currentWave = 1;
+            meteorsSpawnedThisWave = 0;
+            isWaveTransitioning = false;
+            isFrozen = false;
+            clearTimeout(freezeTimeout);
+            meteors = [];
+            rockets = [];
+            particles = [];
+            answerTexts = [];
+            currentInput = "";
+            
+            updateInputDisplay();
+            updateHUD();
+            
+            startScreen.classList.remove('active');
+            gameOverScreen.classList.remove('active');
+            hud.classList.remove('hidden');
+            inputArea.classList.remove('hidden');
+            
+            // แสดง Wave 1
+            waveText.innerText = `WAVE 1`;
+            waveAnnouncement.classList.remove('opacity-0');
+            waveAnnouncement.classList.add('opacity-100');
+            isWaveTransitioning = true;
+            
+            setTimeout(() => {
+                waveAnnouncement.classList.remove('opacity-100');
+                waveAnnouncement.classList.add('opacity-0');
+                isWaveTransitioning = false;
+                lastSpawnTime = Date.now() + 500;
+            }, 2000);
+            
+            isPlaying = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function loseLife() {
+            lives--;
+            updateHUD();
+            
+            soundManager.playDamage();
+            
+            // Screen shake effect
+            canvas.style.transform = "translate(5px, 5px)";
+            setTimeout(() => canvas.style.transform = "translate(-5px, -5px)", 50);
+            setTimeout(() => canvas.style.transform = "translate(5px, -5px)", 100);
+            setTimeout(() => canvas.style.transform = "translate(0, 0)", 150);
+
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            
+            soundManager.stopBGM();
+            soundManager.playGameOver();
+            
+            hud.classList.add('hidden');
+            inputArea.classList.add('hidden');
+            gameOverScreen.classList.add('active');
+            document.getElementById('finalScore').innerText = score;
+        }
+
+        function showMenu() {
+            soundManager.stopBGM();
+            
+            gameOverScreen.classList.remove('active');
+            startScreen.classList.add('active');
+        }
+
+        function quitToMenu() {
+            isPlaying = false;
+            soundManager.stopBGM();
+            
+            hud.classList.add('hidden');
+            inputArea.classList.add('hidden');
+            waveAnnouncement.classList.remove('opacity-100');
+            waveAnnouncement.classList.add('opacity-0');
+            
+            startScreen.classList.add('active');
+            
+            // วาดพื้นหลังดาวให้สวยงามระหว่างอยู่หน้าเมนู
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawStars();
+        }
+
+        function updateHUD() {
+            scoreDisplay.innerText = score;
+            waveDisplay.innerText = currentWave;
+            let hearts = "";
+            for(let i=0; i<lives; i++) hearts += "❤️";
+            for(let i=lives; i<3; i++) hearts += "🤍"; // Empty heart representation
+            livesDisplay.innerHTML = hearts;
+        }
+
+        // Input functions
+        function appendNumber(num) {
+            if (currentInput.length < 8) {
+                currentInput += num;
+                updateInputDisplay();
+            }
+        }
+
+        function deleteNumber() {
+            if (currentInput.length > 0) {
+                currentInput = currentInput.slice(0, -1);
+                updateInputDisplay();
+            }
+        }
+
+        function updateInputDisplay() {
+            answerInputDisplay.innerText = currentInput;
+            // Add a small pulsing effect when typing
+            answerInputDisplay.style.transform = "scale(1.1)";
+            setTimeout(() => answerInputDisplay.style.transform = "scale(1)", 100);
+        }
+
+        function submitAnswer() {
+            if (currentInput === "") return;
+            
+            // Find the lowest untargeted meteor with the matching answer
+            let target = null;
+            let maxY = -1;
+            
+            for (let m of meteors) {
+                // strict string comparison to handle decimals cleanly
+                if (m.answer === currentInput && !m.targeted) {
+                    if (m.y > maxY) {
+                        maxY = m.y;
+                        target = m;
+                    }
+                }
+            }
+
+            if (target) {
+                target.targeted = true;
+                soundManager.playShoot();
+                
+                // Fire rocket from the new gun's tip
+                rockets.push({
+                    x: canvas.width / 2,
+                    y: canvas.height - 110,
+                    vx: 0, vy: -15, // initial velocity
+                    speed: 15,
+                    targetObj: target
+                });
+            } else {
+                soundManager.playError();
+                
+                // Visual feedback for wrong answer (shake input box)
+                const panel = answerInputDisplay.parentElement;
+                panel.style.transform = "translateX(-10px)";
+                panel.style.borderColor = "#ef4444"; // Red border
+                setTimeout(() => panel.style.transform = "translateX(10px)", 50);
+                setTimeout(() => panel.style.transform = "translateX(-10px)", 100);
+                setTimeout(() => {
+                    panel.style.transform = "translateX(0)";
+                    panel.style.borderColor = "#06b6d4"; // Restore cyan
+                }, 150);
+            }
+            
+            currentInput = "";
+            updateInputDisplay();
+        }
+
+        // Keyboard support
+        window.addEventListener('keydown', (e) => {
+            if(!isPlaying) return;
+            
+            let validKey = false;
+            let keyChar = e.key;
+
+            if (e.key >= '0' && e.key <= '9') {
+                appendNumber(e.key);
+                validKey = true;
+            } else if (e.key === '.' || e.key === '-') {
+                // allow minus sign in case of negative results if added in future
+                appendNumber(e.key);
+                validKey = true;
+            } else if (e.key === 'Backspace') {
+                deleteNumber();
+                validKey = true;
+            } else if (e.key === 'Enter') {
+                submitAnswer();
+                validKey = true;
+            }
+
+            // Prevent default browser behaviors like scrolling if game key is pressed
+            if (validKey) {
+                e.preventDefault(); 
+            }
+        });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AR Trash Catcher - เกม AR แยกขยะหล่นฟ้า</title>
+    
+    <!-- External CSS Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- MediaPipe Hands & Camera Utils for AI Hand Tracking -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Kanit', sans-serif;
+        }
+
+        /* Custom Cute Animations for Kids */
+        @keyframes wiggle {
+            0%, 100% { transform: rotate(-4deg); }
+            50% { transform: rotate(4deg); }
+        }
+
+        @keyframes float-cute {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(3deg); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); }
+            50% { box-shadow: 0 0 28px rgba(251, 191, 36, 0.85); }
+        }
+
+        .animate-wiggle {
+            animation: wiggle 2.2s ease-in-out infinite;
+        }
+
+        .animate-float {
+            animation: float-cute 3s ease-in-out infinite;
+        }
+
+        .pulse-glow {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Custom Sticker Styling */
+        .sticker-card {
+            filter: drop-shadow(0px 8px 12px rgba(0, 0, 0, 0.3));
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .sticker-card:hover {
+            transform: scale(1.05) rotate(1.5deg);
+        }
+        .sticker-card:active {
+            transform: scale(0.96);
+        }
+
+        /* Bright Glassmorphism Overlays for Kids */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 3.5px solid rgba(255, 255, 255, 0.95);
+            box-shadow: 0 12px 35px -5px rgba(15, 23, 42, 0.25);
+        }
+
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+        }
+
+        /* Cartoon Sticker White Border Effect */
+        .sticker-border {
+            border: 4px solid #ffffff;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* Video element mirrored visually */
+        #webcam {
+            transform: scaleX(-1);
+            -webkit-transform: scaleX(-1);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-800 overflow-hidden h-screen w-screen select-none">
+
+    <!-- AR Camera Video Stream (Background) - Auto Mirror Mode -->
+    <video id="webcam" class="fixed inset-0 w-full h-full object-cover z-0 hidden" autoplay playsinline muted></video>
+    
+    <!-- Cute Pastel Sky Grid Background for Kids (Fallback) -->
+    <div id="ar-fallback-bg" class="fixed inset-0 z-0 bg-gradient-to-b from-sky-400 via-indigo-400 to-purple-600 overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(#ffffff_2px,transparent_2px)] [background-size:32px_32px] opacity-30"></div>
+        
+        <!-- Decorative Cute Floating Elements -->
+        <div class="absolute top-10 left-8 text-6xl opacity-40 animate-float">☁️</div>
+        <div class="absolute top-24 right-12 text-7xl opacity-40 animate-float" style="animation-delay: 1s;">☁️</div>
+        <div class="absolute bottom-16 left-12 text-5xl opacity-35 animate-wiggle">🎈</div>
+        <div class="absolute bottom-28 right-16 text-5xl opacity-35 animate-wiggle" style="animation-delay: 1.5s;">🌈</div>
+        <div class="absolute top-1/2 left-6 text-4xl opacity-30 animate-float" style="animation-delay: 0.5s;">🌟</div>
+        <div class="absolute top-1/3 right-8 text-4xl opacity-30 animate-float" style="animation-delay: 2s;">✨</div>
+    </div>
+
+    <!-- Main Game Canvas Layer -->
+    <canvas id="gameCanvas" class="fixed inset-0 w-full h-full z-10"></canvas>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer" class="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
+
+        <!-- Top HUD Bar -->
+        <header id="hud-top" class="flex justify-between items-center w-full max-w-5xl mx-auto hidden pointer-events-auto">
+            <!-- Player 1 Score & Combo -->
+            <div class="glass-panel rounded-3xl p-2.5 px-4 flex items-center gap-3 shadow-xl border-4 border-white">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-400 to-teal-500 text-white flex items-center justify-center font-bold text-xl shadow-md animate-bounce-cute" id="p1-avatar">
+                    🐱
+                </div>
+                <div>
+                    <div class="text-[11px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1" id="p1-label">
+                        <span>คะแนน</span> <span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.2 rounded-full font-black">P1</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="p1-score" class="text-2xl sm:text-3xl font-black text-slate-800">0</span>
+                        <span id="p1-combo-badge" class="text-xs font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-amber-950 opacity-0 transition-opacity shadow-sm">
+                            🔥 x<span id="p1-combo">1</span> Combo
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timer Display Center -->
+            <div class="glass-panel rounded-3xl p-2 px-6 flex flex-col items-center shadow-xl border-4 border-amber-300 pulse-glow">
+                <span class="text-[11px] font-black tracking-widest text-amber-600 uppercase flex items-center gap-1">
+                    ⏰ เวลาเหลือ
+                </span>
+                <div id="timer-display" class="text-2xl sm:text-3xl font-black text-rose-600 tracking-wider">
+                    03:00
+                </div>
+            </div>
+
+            <!-- Player 2 Score & Combo (Split Screen Mode Only) -->
+            <div id="p2-hud" class="glass-panel rounded-3xl p-2.5 px-4 flex items-center gap-3 shadow-xl border-4 border-white hidden">
+                <div>
+                    <div class="text-[11px] text-slate-500 font-bold uppercase tracking-wider text-right flex items-center justify-end gap-1">
+                        <span class="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.2 rounded-full font-black">P2</span> <span>คะแนน</span>
+                    </div>
+                    <div class="flex items-baseline gap-2 justify-end">
+                        <span id="p2-combo-badge" class="text-xs font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-amber-950 opacity-0 transition-opacity shadow-sm">
+                            🔥 x<span id="p2-combo">1</span> Combo
+                        </span>
+                        <span id="p2-score" class="text-2xl sm:text-3xl font-black text-slate-800">0</span>
+                    </div>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold text-xl shadow-md animate-bounce-cute">
+                    🐻
+                </div>
+            </div>
+
+            <!-- Single Player Controls (AR Toggle, Pause, Home) -->
+            <div id="sp-controls" class="flex gap-2">
+                <button id="btn-toggle-ar" title="สลับกล้อง AR" class="w-12 h-12 rounded-2xl glass-panel text-slate-700 flex items-center justify-center text-xl font-bold hover:bg-white transition active:scale-90 shadow-md border-2 border-white">
+                    📸
+                </button>
+                <button id="btn-top-home" title="กลับหน้าหลัก" class="w-12 h-12 rounded-2xl glass-panel text-slate-700 flex items-center justify-center text-xl font-bold hover:bg-white transition active:scale-90 shadow-md border-2 border-white">
+                    🏠
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Start Menu Modal (Cute Kid Theme) -->
+        <div id="modal-start" class="pointer-events-auto fixed inset-0 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md z-30">
+            <div class="glass-panel max-w-lg w-full rounded-3xl p-6 sm:p-8 text-center shadow-2xl border-4 border-white relative overflow-hidden">
+                
+                <!-- Cute Decorative Top Sticker Badges -->
+                <div class="absolute -top-3 -left-3 bg-amber-400 text-amber-950 text-xs font-black px-4 py-1.5 rounded-full rotate-[-12deg] shadow-md border-2 border-white">
+                    🌟 เกมสนุกได้ความรู้!
+                </div>
+                <div class="absolute -top-3 -right-3 bg-pink-400 text-white text-xs font-black px-4 py-1.5 rounded-full rotate-[12deg] shadow-md border-2 border-white">
+                    🎈 เหมาะสำหรับเด็กประถม
+                </div>
+
+                <!-- Cute Mascot Animation Icon -->
+                <div class="relative inline-block mt-2 mb-2">
+                    <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-emerald-400 via-teal-400 to-cyan-400 text-white text-5xl flex items-center justify-center shadow-xl border-4 border-white animate-float mx-auto">
+                        🐱🌱
+                    </div>
+                    <span class="absolute -bottom-2 -right-2 text-3xl animate-wiggle">✨</span>
+                    <span class="absolute -top-2 -left-2 text-3xl animate-wiggle" style="animation-delay: 0.7s;">🎈</span>
+                </div>
+
+                <h1 class="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight mt-1">
+                    AR Trash Catcher
+                </h1>
+                <p class="text-emerald-700 font-bold text-base sm:text-lg mt-0.5 mb-4 flex items-center justify-center gap-1">
+                    <span>🦸‍♂️</span> <span>ภารกิจฮีโร่น้อย แยกขยะหล่นฟ้า</span> <span>🦸‍♀️</span>
+                </p>
+
+                <!-- Hand Tracking Kid Friendly Instructions -->
+                <div class="bg-gradient-to-r from-indigo-50 to-sky-50 border-3 border-indigo-200/80 rounded-2xl p-3.5 mb-5 text-left shadow-inner">
+                    <div class="text-xs font-bold text-indigo-900 mb-1.5 flex items-center gap-1.5 text-sm">
+                        <span>✋</span> <span>วิธีใช้มือกำ/แบ เล่นเกม AR สุดเจ๋ง:</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-white p-2 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-2">
+                            <span class="text-2xl">✊</span>
+                            <div>
+                                <div class="font-black text-emerald-600">กำมือ</div>
+                                <div class="text-[11px] text-slate-500 font-bold">หยิบจับขยะ</div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-2 rounded-xl border border-blue-200 shadow-sm flex items-center gap-2">
+                            <span class="text-2xl">✋</span>
+                            <div>
+                                <div class="font-black text-blue-600">แบมือ</div>
+                                <div class="text-[11px] text-slate-500 font-bold">ปล่อยขยะลงถัง</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mode Selection Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-5">
+                    <!-- Single Player -->
+                    <button id="btn-mode-single" class="group relative rounded-2xl p-4 bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600 text-white text-left shadow-lg hover:shadow-emerald-400/40 transition transform hover:-translate-y-1 active:scale-95 border-3 border-white">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-3xl">🎮</span>
+                            <span class="bg-white/30 text-white text-[10px] font-black px-2 py-0.5 rounded-full">1 คน</span>
+                        </div>
+                        <div class="font-black text-xl">เล่นคนเดียว</div>
+                        <div class="text-xs text-emerald-100 font-semibold mt-0.5">สะสมดาวทำลายสถิติ (3 นาที)</div>
+                    </button>
+
+                    <!-- 2-Player Split-Screen -->
+                    <button id="btn-mode-dual" class="group relative rounded-2xl p-4 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white text-left shadow-lg hover:shadow-indigo-400/40 transition transform hover:-translate-y-1 active:scale-95 border-3 border-white">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-3xl">⚔️</span>
+                            <span class="bg-white/30 text-white text-[10px] font-black px-2 py-0.5 rounded-full">2 คน</span>
+                        </div>
+                        <div class="font-black text-xl">ดวลแข่งกับเพื่อน</div>
+                        <div class="text-xs text-indigo-100 font-semibold mt-0.5">แข่งกัน 2 คนในหน้าจอเดียว</div>
+                    </button>
+                </div>
+
+                <!-- Camera AR Toggle Switch -->
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-amber-50 border-2 border-amber-200 mb-4 shadow-sm">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-2xl">📸</span>
+                        <span class="text-xs sm:text-sm font-bold text-amber-950">เปิดกล้อง AR (ใช้ภาพจริง & สแกนมือ)</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-camera-start" class="sr-only peer">
+                        <div class="w-12 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+
+                <!-- High Scores Summary -->
+                <div class="flex justify-between items-center text-xs text-slate-600 font-bold px-2 border-t-2 border-dashed pt-3 border-slate-200">
+                    <span>🏆 สถิติสูงสุด: <span id="menu-high-score" class="text-emerald-600 font-black text-sm">0</span> คะแนน</span>
+                    <span>⏳ เวลา: <span class="text-indigo-600 font-black">3:00 นาที</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal (Cute Kid Theme) -->
+        <div id="modal-gameover" class="pointer-events-auto fixed inset-0 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md z-40 hidden">
+            <div class="glass-panel max-w-md w-full rounded-3xl p-6 sm:p-8 text-center shadow-2xl border-4 border-white relative">
+                
+                <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-amber-300 to-yellow-400 text-amber-950 flex items-center justify-center text-4xl font-black shadow-lg mb-3 border-4 border-white animate-bounce-cute">
+                    🏆
+                </div>
+                
+                <h2 class="text-3xl font-black text-slate-800">หมดเวลาแล้วจ้า! 🎉</h2>
+                <p id="gameover-subtitle" class="text-emerald-700 font-bold text-sm mt-1 mb-5">น้องๆ เป็นฮีโร่แยกขยะที่ยอดเยี่ยมมาก!</p>
+
+                <!-- Single Player Result -->
+                <div id="single-result-box" class="bg-gradient-to-b from-sky-50 to-indigo-50 border-2 border-sky-200 rounded-2xl p-4 mb-5 space-y-2.5 shadow-inner">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-600 text-sm font-bold">⭐ คะแนนรวมสุทธิ</span>
+                        <span id="final-score" class="text-3xl font-black text-emerald-600">0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-t border-sky-200 pt-2">
+                        <span class="text-slate-600 font-medium">✅ แยกถูกต้อง</span>
+                        <span id="stat-correct" class="font-black text-emerald-600">0 ชิ้น</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-600 font-medium">❌ แยกผิดถัง</span>
+                        <span id="stat-wrong" class="font-black text-rose-500">0 ชิ้น</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-600 font-medium">💨 หล่นพลาด</span>
+                        <span id="stat-missed" class="font-black text-amber-600">0 ชิ้น</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-t border-sky-200 pt-2">
+                        <span class="text-slate-600 font-medium">🔥 คอมโบสูงสุด</span>
+                        <span id="stat-max-combo" class="font-black text-indigo-600">x0</span>
+                    </div>
+                </div>
+
+                <!-- Dual Result Winner Banner -->
+                <div id="dual-result-box" class="bg-gradient-to-b from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 mb-5 hidden shadow-inner">
+                    <div id="winner-title" class="text-2xl font-black text-purple-900 mb-2">🎉 ผู้ชนะคือ Player 1!</div>
+                    <div class="grid grid-cols-2 gap-2 text-sm font-bold mt-3">
+                        <div class="bg-white p-2.5 rounded-xl shadow-sm border border-purple-100">
+                            <div class="text-xs text-slate-400">P1 SCORE 🐱</div>
+                            <div id="p1-final-score" class="text-2xl font-black text-emerald-600">0</div>
+                        </div>
+                        <div class="bg-white p-2.5 rounded-xl shadow-sm border border-purple-100">
+                            <div class="text-xs text-slate-400">P2 SCORE 🐻</div>
+                            <div id="p2-final-score" class="text-2xl font-black text-indigo-600">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button id="btn-restart" class="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-base shadow-lg transition active:scale-95 border-2 border-white">
+                        🔄 เล่นอีกครั้ง
+                    </button>
+                    <button id="btn-home" class="py-3.5 px-5 rounded-2xl glass-panel text-slate-700 font-black text-base shadow-lg transition hover:bg-white active:scale-95 border-2 border-white">
+                        🏠 หน้าหลัก
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sound FX Synthesizer without external audio assets
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playCorrect() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.15); // A5
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playWrong() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playMiss() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+
+            playCombo() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now); // D5
+                osc.frequency.setValueAtTime(880, now + 0.08); // A5
+                osc.frequency.setValueAtTime(1174.66, now + 0.16); // D6
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.3);
+            }
+
+            playGrab() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(650, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+        }
+
+        const soundFX = new SoundFX();
+
+        const BINS = [
+            { id: 'green', name: 'ขยะอินทรีย์', color: '#22c55e', borderColor: '#15803d', icon: '🌱' },
+            { id: 'yellow', name: 'ขยะทั่วไป', color: '#eab308', borderColor: '#a16207', icon: '❓' },
+            { id: 'blue', name: 'ขยะรีไซเคิล', color: '#3b82f6', borderColor: '#1d4ed8', icon: '♻️' },
+            { id: 'red', name: 'ขยะอันตราย', color: '#ef4444', borderColor: '#b91c1c', icon: '☠️' }
+        ];
+
+        const TRASH_ITEMS = [
+            // Organic (Green)
+            { name: 'เปลือกกล้วย', category: 'green', emoji: '🍌' },
+            { name: 'แกนแอปเปิ้ล', category: 'green', emoji: '🍎' },
+            { name: 'เศษผัก/อาหาร', category: 'green', emoji: '🥗' },
+            { name: 'ใบไม้', category: 'green', emoji: '🍃' },
+            { name: 'กระดูก', category: 'green', emoji: '🦴' },
+            { name: 'อะโวคาโด', category: 'green', emoji: '🥑' },
+            { name: 'เปลือกไข่', category: 'green', emoji: '🥚' },
+            { name: 'ถุงชา', category: 'green', emoji: '🍵' },
+            { name: 'มะเขือเทศเน่า', category: 'green', emoji: '🍅' },
+
+            // General (Yellow)
+            { name: 'ซองขนม', category: 'yellow', emoji: '🍬' },
+            { name: 'กล่องโฟม', category: 'yellow', emoji: '🍱' },
+            { name: 'ทิชชู่', category: 'yellow', emoji: '🧻' },
+            { name: 'แปรงสีฟัน', category: 'yellow', emoji: '🪥' },
+            { name: 'หลอดดูด', category: 'yellow', emoji: '🥤' },
+            { name: 'ปากกาหัก', category: 'yellow', emoji: '🖊️' },
+            { name: 'ใบเสร็จ', category: 'yellow', emoji: '🧾' },
+            { name: 'ซองพลาสติก', category: 'yellow', emoji: '🛍️' },
+
+            // Recycle (Blue)
+            { name: 'ขวดน้ำพลาสติก', category: 'blue', emoji: '🍼' },
+            { name: 'ขวดแก้ว', category: 'blue', emoji: '🍾' },
+            { name: 'กระป๋องน้ำอัดลม', category: 'blue', emoji: '🥤' },
+            { name: 'กล่องกระดาษลัง', category: 'blue', emoji: '📦' },
+            { name: 'หนังสือพิมพ์', category: 'blue', emoji: '📰' },
+            { name: 'ถ้วยกาแฟ', category: 'blue', emoji: '☕' },
+            { name: 'ซองจดหมาย', category: 'blue', emoji: '✉️' },
+            { name: 'ฟอยล์', category: 'blue', emoji: '🥣' },
+
+            // Hazardous (Red)
+            { name: 'ถ่านไฟฉาย', category: 'red', emoji: '🔋' },
+            { name: 'หลอดไฟ', category: 'red', emoji: '💡' },
+            { name: 'กระป๋องสเปรย์', category: 'red', emoji: '🧴' },
+            { name: 'แผงยา/ขวดยา', category: 'red', emoji: '💊' },
+            { name: 'ปรอทวัดไข้', category: 'red', emoji: '🌡️' },
+            { name: 'หลอดแก้วสารเคมี', category: 'red', emoji: '🧪' }
+        ];
+
+        // Canvas Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            setupBins();
+        });
+
+        // Game Core Variables
+        let gameState = 'MENU'; // 'MENU', 'PLAYING_SINGLE', 'PLAYING_DUAL', 'GAMEOVER'
+        let timer = 180;
+        let timerInterval = null;
+        let lastSpawnTime = 0;
+        let spawnInterval = 1700;
+
+        let player1 = { score: 0, combo: 1, correct: 0, wrong: 0, missed: 0, maxCombo: 1 };
+        let player2 = { score: 0, combo: 1, correct: 0, wrong: 0, missed: 0, maxCombo: 1 };
+
+        let activeItems = [];
+        let particles = [];
+        let floatingTexts = [];
+        let binsP1 = [];
+        let binsP2 = [];
+
+        // Dragging & Hand Tracking State
+        let draggedItem = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // Hand Cursor State for AI Hand Tracking
+        let handCursors = {
+            P1: { x: -100, y: -100, isFist: false, prevFist: false, heldItem: null },
+            P2: { x: -100, y: -100, isFist: false, prevFist: false, heldItem: null }
+        };
+
+        // Camera & MediaPipe State
+        let videoStream = null;
+        let arCameraEnabled = false;
+        let handsDetector = null;
+        let cameraUtilsInstance = null;
+
+        function setupBins() {
+            binsP1 = [];
+            binsP2 = [];
+
+            if (gameState === 'PLAYING_DUAL') {
+                const halfW = width / 2;
+                const binW = Math.min(halfW / 4.2, 95);
+                const binH = Math.min(height * 0.16, 120);
+                const pY = height - binH - 20;
+
+                BINS.forEach((b, i) => {
+                    const spacing = halfW / 4;
+                    const pX = spacing * i + (spacing - binW) / 2;
+                    binsP1.push({ ...b, x: pX, y: pY, w: binW, h: binH, owner: 'P1' });
+                });
+
+                BINS.forEach((b, i) => {
+                    const spacing = halfW / 4;
+                    const pX = halfW + spacing * i + (spacing - binW) / 2;
+                    binsP2.push({ ...b, x: pX, y: pY, w: binW, h: binH, owner: 'P2' });
+                });
+            } else {
+                // 2x Enriched scale dimensions for bins
+                const binW = Math.min(width / 4.3, 140);
+                const binH = Math.min(height * 0.18, 150);
+                const pY = height - binH - 25;
+                const spacing = width / 4;
+
+                BINS.forEach((b, i) => {
+                    const pX = spacing * i + (spacing - binW) / 2;
+                    binsP1.push({ ...b, x: pX, y: pY, w: binW, h: binH, owner: 'P1' });
+                });
+            }
+        }
+
+        async function enableARCamera() {
+            try {
+                const videoEl = document.getElementById('webcam');
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                videoEl.srcObject = stream;
+                videoEl.classList.remove('hidden');
+                document.getElementById('ar-fallback-bg').classList.add('hidden');
+                videoStream = stream;
+                arCameraEnabled = true;
+
+                initMediaPipeHands();
+            } catch (err) {
+                console.warn('Camera AR access denied or unavailable:', err);
+                document.getElementById('toggle-camera-start').checked = false;
+                disableARCamera();
+            }
+        }
+
+        function disableARCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            if (cameraUtilsInstance) {
+                cameraUtilsInstance.stop();
+                cameraUtilsInstance = null;
+            }
+            document.getElementById('webcam').classList.add('hidden');
+            document.getElementById('ar-fallback-bg').classList.remove('hidden');
+            arCameraEnabled = false;
+        }
+
+        function initMediaPipeHands() {
+            if (handsDetector) return;
+
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            hands.onResults(onHandResults);
+            handsDetector = hands;
+
+            const videoEl = document.getElementById('webcam');
+            cameraUtilsInstance = new Camera(videoEl, {
+                onFrame: async () => {
+                    if (arCameraEnabled && videoEl && !videoEl.paused) {
+                        await hands.send({ image: videoEl });
+                    }
+                },
+                width: 1280,
+                height: 720
+            });
+            cameraUtilsInstance.start();
+        }
+
+        function onHandResults(results) {
+            if (!arCameraEnabled || (gameState !== 'PLAYING_SINGLE' && gameState !== 'PLAYING_DUAL')) return;
+
+            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+                handCursors.P1.x = -100;
+                handCursors.P2.x = -100;
+                return;
+            }
+
+            results.multiHandLandmarks.forEach((landmarks, index) => {
+                // Auto Mirrored Coordinate Calculation:
+                // landmark x goes 0..1 (left to right in camera).
+                // Since video CSS is scaleX(-1), mirrored screen X = (1 - x) * width.
+                const rawX = landmarks[9].x; // Landmark 9 is middle finger MCP joint (palm center)
+                const rawY = landmarks[9].y;
+                const screenX = (1 - rawX) * width;
+                const screenY = rawY * height;
+
+                // Fist Detection: Calculate average distance from fingertips (8, 12, 16, 20) to Wrist (0)
+                const wrist = landmarks[0];
+                const tips = [8, 12, 16, 20];
+                let totalDist = 0;
+
+                tips.forEach(tipIdx => {
+                    const tip = landmarks[tipIdx];
+                    const dist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+                    totalDist += dist;
+                });
+
+                const avgDist = totalDist / 4;
+                const isFist = avgDist < 0.26; // Threshold for fist gesture
+
+                // Map to P1 or P2 depending on screen half or hand index
+                let playerKey = 'P1';
+                if (gameState === 'PLAYING_DUAL') {
+                    playerKey = screenX > width / 2 ? 'P2' : 'P1';
+                }
+
+                updateHandCursor(playerKey, screenX, screenY, isFist);
+            });
+        }
+
+        function updateHandCursor(playerKey, x, y, isFist) {
+            const cursor = handCursors[playerKey];
+            cursor.x = x;
+            cursor.y = y;
+            cursor.prevFist = cursor.isFist;
+            cursor.isFist = isFist;
+
+            // Gesture: Just Fist (✊) -> Grab nearest item under hand
+            if (cursor.isFist && !cursor.prevFist && !cursor.heldItem) {
+                for (let i = activeItems.length - 1; i >= 0; i--) {
+                    const item = activeItems[i];
+                    const centerX = item.x + item.w / 2;
+                    const centerY = item.y + item.h / 2;
+                    const dist = Math.hypot(centerX - x, centerY - y);
+
+                    if (dist < item.w * 0.75) {
+                        cursor.heldItem = item;
+                        item.isDragging = true;
+                        soundFX.playGrab();
+                        break;
+                    }
+                }
+            }
+
+            // Dragging held item with hand cursor
+            if (cursor.heldItem) {
+                cursor.heldItem.x = x - cursor.heldItem.w / 2;
+                cursor.heldItem.y = y - cursor.heldItem.h / 2;
+
+                // Gesture: Open Hand (✋) -> Release item into bin
+                if (!cursor.isFist && cursor.prevFist) {
+                    const item = cursor.heldItem;
+                    item.isDragging = false;
+                    cursor.heldItem = null;
+
+                    let targetBins = (gameState === 'PLAYING_DUAL' && item.x > width / 2) ? binsP2 : binsP1;
+                    let playerObj = (gameState === 'PLAYING_DUAL' && item.x > width / 2) ? player2 : player1;
+
+                    let droppedInBin = false;
+                    targetBins.forEach(bin => {
+                        const itemCenterX = item.x + item.w / 2;
+                        const itemCenterY = item.y + item.h / 2;
+
+                        if (itemCenterX >= bin.x && itemCenterX <= bin.x + bin.w &&
+                            itemCenterY >= bin.y && itemCenterY <= bin.y + bin.h) {
+                            droppedInBin = true;
+                            evaluateTrashDrop(item, bin, playerObj);
+                        }
+                    });
+
+                    if (droppedInBin) {
+                        activeItems = activeItems.filter(i => i.id !== item.id);
+                    }
+                }
+            }
+        }
+
+        function spawnTrashItem(owner = 'P1') {
+            const randomData = TRASH_ITEMS[Math.floor(Math.random() * TRASH_ITEMS.length)];
+            
+            // Doubled Size (Max 140px, or 24% screen width)
+            const size = Math.min(width * 0.22, 135);
+
+            let spawnMinX = 20;
+            let spawnMaxX = width - size - 20;
+
+            if (gameState === 'PLAYING_DUAL') {
+                if (owner === 'P1') {
+                    spawnMaxX = (width / 2) - size - 10;
+                } else {
+                    spawnMinX = (width / 2) + 10;
+                    spawnMaxX = width - size - 10;
+                }
+            }
+
+            const posX = spawnMinX + Math.random() * (spawnMaxX - spawnMinX);
+            const elapsed = 180 - timer;
+            const speedMultiplier = 1 + (elapsed / 180) * 0.75;
+            const baseSpeed = 0.95 + Math.random() * 0.55;
+
+            activeItems.push({
+                id: Math.random().toString(36).substr(2, 9),
+                ...randomData,
+                x: posX,
+                y: -size,
+                w: size,
+                h: size,
+                vy: baseSpeed * speedMultiplier,
+                vx: 0,
+                owner: owner,
+                isDragging: false
+            });
+        }
+
+        function getEventPos(e) {
+            if (e.touches && e.touches.length > 0) {
+                return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+            return { x: e.clientX, y: e.clientY };
+        }
+
+        function handlePointerDown(e) {
+            soundFX.init();
+            if (gameState !== 'PLAYING_SINGLE' && gameState !== 'PLAYING_DUAL') return;
+
+            const pos = getEventPos(e);
+            
+            for (let i = activeItems.length - 1; i >= 0; i--) {
+                const item = activeItems[i];
+                if (pos.x >= item.x && pos.x <= item.x + item.w &&
+                    pos.y >= item.y && pos.y <= item.y + item.h) {
+                    draggedItem = item;
+                    item.isDragging = true;
+                    dragOffsetX = pos.x - item.x;
+                    dragOffsetY = pos.y - item.y;
+                    
+                    activeItems.splice(i, 1);
+                    activeItems.push(item);
+                    soundFX.playGrab();
+                    break;
+                }
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!draggedItem) return;
+            const pos = getEventPos(e);
+            draggedItem.x = pos.x - dragOffsetX;
+            draggedItem.y = pos.y - dragOffsetY;
+        }
+
+        function handlePointerUp() {
+            if (!draggedItem) return;
+
+            const item = draggedItem;
+            item.isDragging = false;
+            draggedItem = null;
+
+            let targetBins = binsP1;
+            let playerObj = player1;
+            
+            if (gameState === 'PLAYING_DUAL' && item.x > width / 2) {
+                targetBins = binsP2;
+                playerObj = player2;
+            }
+
+            let droppedInBin = false;
+            targetBins.forEach(bin => {
+                const itemCenterX = item.x + item.w / 2;
+                const itemCenterY = item.y + item.h / 2;
+
+                if (itemCenterX >= bin.x && itemCenterX <= bin.x + bin.w &&
+                    itemCenterY >= bin.y && itemCenterY <= bin.y + bin.h) {
+                    droppedInBin = true;
+                    evaluateTrashDrop(item, bin, playerObj);
+                }
+            });
+
+            if (droppedInBin) {
+                activeItems = activeItems.filter(i => i.id !== item.id);
+            }
+        }
+
+        canvas.addEventListener('mousedown', handlePointerDown);
+        canvas.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+
+        canvas.addEventListener('touchstart', (e) => { handlePointerDown(e); e.preventDefault(); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { handlePointerMove(e); e.preventDefault(); }, { passive: false });
+        window.addEventListener('touchend', handlePointerUp);
+
+        function evaluateTrashDrop(item, bin, player) {
+            const isCorrect = item.category === bin.id;
+
+            if (isCorrect) {
+                const addedPoints = 10 * player.combo;
+                player.score += addedPoints;
+                player.correct++;
+                player.combo++;
+                if (player.combo > player.maxCombo) player.maxCombo = player.combo;
+
+                soundFX.playCorrect();
+                if (player.combo > 2) soundFX.playCombo();
+
+                createParticles(bin.x + bin.w / 2, bin.y + 20, bin.color);
+                addFloatingText(`+${addedPoints} (${item.name})`, bin.x + bin.w / 2, bin.y - 25, '#22c55e');
+            } else {
+                player.score = Math.max(0, player.score - 5);
+                player.wrong++;
+                player.combo = 1;
+
+                soundFX.playWrong();
+                addFloatingText(`-5 ผิดถัง!`, bin.x + bin.w / 2, bin.y - 25, '#ef4444');
+            }
+
+            updateHUD();
+        }
+
+        function handleMissedTrash(item) {
+            let player = player1;
+            if (gameState === 'PLAYING_DUAL' && item.x > width / 2) {
+                player = player2;
+            }
+
+            player.score = Math.max(0, player.score - 2);
+            player.missed++;
+            player.combo = 1;
+
+            soundFX.playMiss();
+            addFloatingText(`-2 ตกพื้น`, item.x + item.w / 2, height - 40, '#f59e0b');
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('p1-score').textContent = player1.score;
+            document.getElementById('p1-combo').textContent = player1.combo;
+            
+            const p1Badge = document.getElementById('p1-combo-badge');
+            if (player1.combo > 1) {
+                p1Badge.classList.remove('opacity-0');
+            } else {
+                p1Badge.classList.add('opacity-0');
+            }
+
+            if (gameState === 'PLAYING_DUAL') {
+                document.getElementById('p2-score').textContent = player2.score;
+                document.getElementById('p2-combo').textContent = player2.combo;
+                const p2Badge = document.getElementById('p2-combo-badge');
+                if (player2.combo > 1) {
+                    p2Badge.classList.remove('opacity-0');
+                } else {
+                    p2Badge.classList.add('opacity-0');
+                }
+            }
+        }
+
+        function addFloatingText(text, x, y, color) {
+            floatingTexts.push({ text, x, y, color, opacity: 1, vy: -1.6 });
+        }
+
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 16; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 9,
+                    vy: (Math.random() - 0.5) * 9 - 2.5,
+                    radius: Math.random() * 6 + 4,
+                    color,
+                    alpha: 1
+                });
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timer = 180;
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                timer--;
+                updateTimerDisplay();
+
+                if (timer <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timer / 60);
+            const secs = timer % 60;
+            document.getElementById('timer-display').textContent = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function startGame(mode) {
+            gameState = mode;
+            player1 = { score: 0, combo: 1, correct: 0, wrong: 0, missed: 0, maxCombo: 1 };
+            player2 = { score: 0, combo: 1, correct: 0, wrong: 0, missed: 0, maxCombo: 1 };
+            activeItems = [];
+            particles = [];
+            floatingTexts = [];
+            handCursors.P1.heldItem = null;
+            handCursors.P2.heldItem = null;
+
+            setupBins();
+            updateHUD();
+
+            document.getElementById('modal-start').classList.add('hidden');
+            document.getElementById('modal-gameover').classList.add('hidden');
+            document.getElementById('hud-top').classList.remove('hidden');
+
+            if (mode === 'PLAYING_DUAL') {
+                document.getElementById('p2-hud').classList.remove('hidden');
+            } else {
+                document.getElementById('p2-hud').classList.add('hidden');
+            }
+
+            startTimer();
+        }
+
+        function returnToHome() {
+            clearInterval(timerInterval);
+            gameState = 'MENU';
+            activeItems = [];
+            particles = [];
+            floatingTexts = [];
+            handCursors.P1.heldItem = null;
+            handCursors.P2.heldItem = null;
+
+            document.getElementById('modal-gameover').classList.add('hidden');
+            document.getElementById('hud-top').classList.add('hidden');
+            document.getElementById('modal-start').classList.remove('hidden');
+
+            const bestScore = localStorage.getItem('ar_trash_highscore') || '0';
+            document.getElementById('menu-high-score').textContent = bestScore;
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            gameState = 'GAMEOVER';
+
+            document.getElementById('hud-top').classList.add('hidden');
+            document.getElementById('modal-gameover').classList.remove('hidden');
+
+            if (gameState === 'PLAYING_DUAL' || player2.score > 0) {
+                document.getElementById('single-result-box').classList.add('hidden');
+                document.getElementById('dual-result-box').classList.remove('hidden');
+
+                document.getElementById('p1-final-score').textContent = player1.score;
+                document.getElementById('p2-final-score').textContent = player2.score;
+
+                const winTitle = document.getElementById('winner-title');
+                if (player1.score > player2.score) {
+                    winTitle.textContent = "🏆 Player 1 ชนะ!";
+                    winTitle.className = "text-2xl font-black text-emerald-600 mb-2";
+                } else if (player2.score > player1.score) {
+                    winTitle.textContent = "🏆 Player 2 ชนะ!";
+                    winTitle.className = "text-2xl font-black text-indigo-600 mb-2";
+                } else {
+                    winTitle.textContent = "🤝 เสมอกัน!";
+                    winTitle.className = "text-2xl font-black text-amber-600 mb-2";
+                }
+            } else {
+                document.getElementById('single-result-box').classList.remove('hidden');
+                document.getElementById('dual-result-box').classList.add('hidden');
+
+                document.getElementById('final-score').textContent = player1.score;
+                document.getElementById('stat-correct').textContent = `${player1.correct} ชิ้น`;
+                document.getElementById('stat-wrong').textContent = `${player1.wrong} ชิ้น`;
+                document.getElementById('stat-missed').textContent = `${player1.missed} ชิ้น`;
+                document.getElementById('stat-max-combo').textContent = `x${player1.maxCombo}`;
+
+                const currentBest = parseInt(localStorage.getItem('ar_trash_highscore') || '0');
+                if (player1.score > currentBest) {
+                    localStorage.setItem('ar_trash_highscore', player1.score);
+                    document.getElementById('menu-high-score').textContent = player1.score;
+                }
+            }
+        }
+
+        function drawStickerItem(item) {
+            ctx.save();
+            ctx.translate(item.x + item.w / 2, item.y + item.h / 2);
+
+            const size = item.w;
+
+            // Render Sticker shadow & Emoji (2x Scaled)
+            ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            ctx.shadowBlur = item.isDragging ? 20 : 8;
+            ctx.shadowOffsetY = item.isDragging ? 8 : 4;
+
+            ctx.font = `${size * 0.68}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(item.emoji, 0, -6);
+
+            // Label Text under Item
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
+            ctx.font = 'bold 16px Kanit, sans-serif';
+            ctx.fillStyle = '#0f172a';
+            ctx.fillText(item.name, 0, size * 0.40);
+
+            ctx.restore();
+        }
+
+        function drawBin(bin) {
+            ctx.save();
+
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 5;
+
+            const r = 18;
+            ctx.fillStyle = bin.color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+
+            ctx.beginPath();
+            ctx.roundRect(bin.x, bin.y, bin.w, bin.h, [r, r, 10, 10]);
+            ctx.fill();
+            ctx.stroke();
+
+            // Bin Lid Top Bar
+            ctx.fillStyle = bin.borderColor;
+            ctx.beginPath();
+            ctx.roundRect(bin.x - 5, bin.y - 14, bin.w + 10, 24, [10, 10, 5, 5]);
+            ctx.fill();
+            ctx.stroke();
+
+            // Bin Icon & Category Name
+            ctx.shadowBlur = 0;
+            ctx.font = `${bin.w * 0.28}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(bin.icon, bin.x + bin.w / 2, bin.y + bin.h * 0.42);
+
+            ctx.font = 'extrabold 14px Kanit, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(bin.name, bin.x + bin.w / 2, bin.y + bin.h * 0.76);
+
+            ctx.restore();
+        }
+
+        function drawHandCursors() {
+            if (!arCameraEnabled) return;
+
+            ['P1', 'P2'].forEach(key => {
+                const c = handCursors[key];
+                if (c.x < 0 || c.y < 0) return;
+
+                ctx.save();
+                ctx.translate(c.x, c.y);
+
+                const ringColor = c.isFist ? '#ef4444' : '#10b981';
+                
+                // Outer Pulse Ring
+                ctx.beginPath();
+                ctx.arc(0, 0, 32, 0, Math.PI * 2);
+                ctx.strokeStyle = ringColor;
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ringColor;
+                ctx.stroke();
+
+                // Inner Fill Circle
+                ctx.beginPath();
+                ctx.arc(0, 0, c.isFist ? 14 : 20, 0, Math.PI * 2);
+                ctx.fillStyle = ringColor;
+                ctx.globalAlpha = 0.4;
+                ctx.fill();
+
+                // Gesture Icon Label
+                ctx.globalAlpha = 1.0;
+                ctx.font = '18px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(c.isFist ? '✊' : '✋', 0, 0);
+
+                ctx.font = 'bold 12px Kanit';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(c.isFist ? 'กำมือ (หยิบ)' : 'แบมือ (เลือก)', 0, 44);
+
+                ctx.restore();
+            });
+        }
+
+        function gameLoop(timestamp) {
+            ctx.clearRect(0, 0, width, height);
+
+            if (gameState === 'PLAYING_DUAL') {
+                ctx.save();
+                ctx.setLineDash([8, 8]);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(width / 2, 0);
+                ctx.lineTo(width / 2, height);
+                ctx.stroke();
+
+                ctx.font = 'bold 14px Kanit';
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.fillText('PLAYER 1', 20, 30);
+                ctx.fillText('PLAYER 2', width / 2 + 20, 30);
+                ctx.restore();
+            }
+
+            if (gameState === 'PLAYING_SINGLE' || gameState === 'PLAYING_DUAL') {
+
+                if (timestamp - lastSpawnTime > spawnInterval) {
+                    spawnTrashItem('P1');
+                    if (gameState === 'PLAYING_DUAL') {
+                        spawnTrashItem('P2');
+                    }
+                    lastSpawnTime = timestamp;
+                    spawnInterval = Math.max(800, spawnInterval * 0.992);
+                }
+
+                binsP1.forEach(drawBin);
+                if (gameState === 'PLAYING_DUAL') binsP2.forEach(drawBin);
+
+                for (let i = activeItems.length - 1; i >= 0; i--) {
+                    const item = activeItems[i];
+
+                    if (!item.isDragging) {
+                        item.y += item.vy;
+
+                        if (item.y + item.h >= height - 30) {
+                            handleMissedTrash(item);
+                            activeItems.splice(i, 1);
+                            continue;
+                        }
+                    }
+
+                    drawStickerItem(item);
+                }
+
+                // Render Hand Cursors from MediaPipe
+                drawHandCursors();
+
+                // Render Particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= 0.025;
+
+                    if (p.alpha <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.save();
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Render Floating Texts
+                for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                    const ft = floatingTexts[i];
+                    ft.y += ft.vy;
+                    ft.opacity -= 0.02;
+
+                    if (ft.opacity <= 0) {
+                        floatingTexts.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.save();
+                    ctx.globalAlpha = ft.opacity;
+                    ctx.font = 'black 17px Kanit, sans-serif';
+                    ctx.fillStyle = ft.color;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(ft.text, ft.x, ft.y);
+                    ctx.restore();
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = function () {
+            const bestScore = localStorage.getItem('ar_trash_highscore') || '0';
+            document.getElementById('menu-high-score').textContent = bestScore;
+
+            // Buttons Events
+            document.getElementById('btn-mode-single').addEventListener('click', () => startGame('PLAYING_SINGLE'));
+            document.getElementById('btn-mode-dual').addEventListener('click', () => startGame('PLAYING_DUAL'));
+
+            document.getElementById('btn-restart').addEventListener('click', () => startGame(gameState));
+            document.getElementById('btn-home').addEventListener('click', returnToHome);
+            document.getElementById('btn-top-home').addEventListener('click', returnToHome);
+
+            // Camera Toggles
+            document.getElementById('toggle-camera-start').addEventListener('change', (e) => {
+                if (e.target.checked) enableARCamera();
+                else disableARCamera();
+            });
+
+            document.getElementById('btn-toggle-ar').addEventListener('click', () => {
+                const toggle = document.getElementById('toggle-camera-start');
+                toggle.checked = !toggle.checked;
+                if (toggle.checked) enableARCamera();
+                else disableARCamera();
+            });
+
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>

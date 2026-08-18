@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จับคู่ กู้เลข 10 - สื่อการสอนและเกมคณิตศาสตร์</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts: Prompt & Sarabun -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            950: '#0f172a'
+                        }
+                    },
+                    fontFamily: {
+                        prompt: ['Prompt', 'sans-serif'],
+                        sarabun: ['Sarabun', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        h1, h2, h3, h4, h5, h6, .font-prompt {
+            font-family: 'Prompt', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 380px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 340px;
+            }
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .tile-selected {
+            background-color: #059669 !important;
+            border-color: #34d399 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 15px rgba(52, 211, 153, 0.5);
+            transform: scale(1.05);
+        }
+        .tile-matched {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(52, 211, 153, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(52, 211, 153, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="no-print bg-slate-900/90 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('game')">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-900/40 text-white font-extrabold text-xl">
+                        10
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold font-prompt text-white tracking-wide">จับคู่ กู้เลข 10</h1>
+                        <p class="text-xs text-emerald-400 font-medium">สื่อการสอน & บอร์ดเกมคณิตศาสตร์ ป.1 - ป.6</p>
+                    </div>
+                </div>
+
+                <nav class="hidden md:flex space-x-1">
+                    <button onclick="switchTab('game')" id="nav-game" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium font-prompt transition-all text-emerald-400 bg-slate-800 border border-emerald-500/30">
+                        <i class="fa-solid fa-gamepad mr-2"></i>ห้องเล่นเกม
+                    </button>
+                    <button onclick="switchTab('analytics')" id="nav-analytics" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium font-prompt transition-all text-slate-300 hover:text-white hover:bg-slate-800">
+                        <i class="fa-solid fa-chart-pie mr-2"></i>ตารางสถิติ & คะแนนออนไลน์
+                    </button>
+                </nav>
+
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                    <button onclick="resetGame()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-white rounded-lg text-xs font-prompt font-semibold flex items-center transition shadow">
+                        <i class="fa-solid fa-rotate-right mr-1.5 text-emerald-400"></i>เริ่มใหม่
+                    </button>
+                    <button onclick="toggleSound()" id="soundToggleBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-slate-200 rounded-lg text-xs font-prompt font-semibold flex items-center transition shadow">
+                        <i class="fa-solid fa-volume-high mr-1.5 text-emerald-400"></i>เสียง: เปิด
+                    </button>
+                    <div class="hidden sm:flex flex-col items-end ml-1">
+                        <span id="userDisplayName" class="text-xs font-semibold text-slate-200">ยังไม่ลงชื่อ</span>
+                        <span id="userDisplayRole" class="text-[10px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/50">ทั่วไป</span>
+                    </div>
+                    <button onclick="openRegisterModal()" class="px-3 py-1.5 rounded-lg text-xs font-prompt font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all flex items-center">
+                        <i class="fa-solid fa-user-pen mr-1.5"></i>เปลี่ยนผู้เล่น
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="md:hidden flex overflow-x-auto border-t border-slate-800 px-2 py-2 space-x-1">
+            <button onclick="switchTab('game')" id="mob-nav-game" class="mob-nav-btn whitespace-nowrap px-3 py-1.5 rounded-md text-xs font-medium font-prompt text-emerald-400 bg-slate-800">
+                🎮 เล่นเกม
+            </button>
+            <button onclick="switchTab('analytics')" id="mob-nav-analytics" class="mob-nav-btn whitespace-nowrap px-3 py-1.5 rounded-md text-xs font-medium font-prompt text-slate-300">
+                📊 สถิติ & คะแนน
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4 flex-1 w-full">
+
+        <!-- TAB 1: INTERACTIVE GAME HUB -->
+        <section id="tab-game" class="tab-content block space-y-3">
+
+            <!-- Dashboard Timer & Stats Bar -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="glass-panel p-3 rounded-xl flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-950/80 border border-emerald-800/60 flex items-center justify-center text-emerald-400 text-lg">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold block">เวลาคงเหลือ</span>
+                        <span id="timerDisplay" class="text-lg sm:text-xl font-extrabold font-prompt text-emerald-300">03:00</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-3 rounded-xl flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400 text-lg">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold block">จับคู่สำเร็จ</span>
+                        <span id="matchedCountDisplay" class="text-lg sm:text-xl font-extrabold font-prompt text-cyan-300">0 / 26 คู่</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-3 rounded-xl flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-amber-950/80 border border-amber-800/60 flex items-center justify-center text-amber-400 text-lg">
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold block">คะแนนปัจจุบัน</span>
+                        <span id="scoreDisplay" class="text-lg sm:text-xl font-extrabold font-prompt text-amber-300">0 คะแนน</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 50 Open Number Grid (13 Columns Layout) -->
+            <div class="glass-panel p-2 sm:p-4 rounded-2xl shadow-2xl relative">
+                <div id="numbersGrid" class="w-full grid gap-1.5 sm:gap-2" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
+                    <!-- Dynamic 50 Open Numbers -->
+                </div>
+            </div>
+
+            <!-- Game Result Modal Overlay -->
+            <div id="gameResultModal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+                <div class="glass-panel max-w-5xl w-full rounded-3xl p-4 sm:p-6 border border-emerald-500/30 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+                    
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                        <div class="flex items-center space-x-3">
+                            <span id="resultIcon" class="text-3xl">🏆</span>
+                            <div>
+                                <h3 id="resultTitle" class="text-xl sm:text-2xl font-bold font-prompt text-white">ยอดเยี่ยมมาก! กู้เลข 10 สำเร็จ</h3>
+                                <p id="resultSubtitle" class="text-xs sm:text-sm text-slate-300">สรุปสถิติผลการเล่นและตารางลำดับสถิติออนไลน์สด</p>
+                            </div>
+                        </div>
+                        <button onclick="closeResultModal()" class="text-slate-400 hover:text-white text-xl">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                        
+                        <!-- Left Panel: Performance Card -->
+                        <div class="md:col-span-5 bg-slate-900/90 rounded-2xl p-4 border border-slate-700 space-y-4">
+                            <h4 class="text-sm font-bold font-prompt text-emerald-400 border-b border-slate-800 pb-2">
+                                <i class="fa-solid fa-clipboard-check mr-2"></i>สรุปผลการเล่นของคุณ
+                            </h4>
+
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center bg-slate-800/60 p-3 rounded-xl">
+                                    <span class="text-xs text-slate-400">ผู้เล่น:</span>
+                                    <span id="modalPlayerName" class="text-sm font-bold text-white font-prompt">นักเรียน</span>
+                                </div>
+                                <div class="flex justify-between items-center bg-slate-800/60 p-3 rounded-xl">
+                                    <span class="text-xs text-slate-400">ระดับชั้น:</span>
+                                    <span id="modalPlayerRole" class="text-xs font-semibold text-emerald-300 bg-emerald-950 px-2 py-1 rounded">ป.1</span>
+                                </div>
+                                <div class="flex justify-between items-center bg-slate-800/60 p-3 rounded-xl">
+                                    <span class="text-xs text-slate-400">คู่ที่จับได้:</span>
+                                    <span id="modalMatchedPairs" class="text-sm font-bold text-cyan-300 font-prompt">0 / 26 คู่</span>
+                                </div>
+                                <div class="flex justify-between items-center bg-slate-800/60 p-3 rounded-xl">
+                                    <span class="text-xs text-slate-400">เวลาที่ใช้เล่น:</span>
+                                    <span id="modalTimeSpent" class="text-sm font-bold text-amber-300 font-prompt">0 วินาที</span>
+                                </div>
+                                <div class="flex justify-between items-center bg-emerald-950/60 border border-emerald-800/60 p-3 rounded-xl">
+                                    <span class="text-xs text-emerald-300 font-semibold">คะแนนรวมสุทธิ:</span>
+                                    <span id="modalFinalScore" class="text-lg font-extrabold text-emerald-400 font-prompt">0</span>
+                                </div>
+                            </div>
+
+                            <button onclick="resetGame(); closeResultModal();" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold font-prompt rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+                                <i class="fa-solid fa-play mr-2"></i>เล่นอีกครั้ง
+                            </button>
+                        </div>
+
+                        <!-- Right Panel: Online Leaderboard -->
+                        <div class="md:col-span-7 bg-slate-900/90 rounded-2xl p-4 border border-slate-700 space-y-3">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-2">
+                                <h4 class="text-sm font-bold font-prompt text-emerald-400">
+                                    <i class="fa-solid fa-trophy mr-2 text-amber-400"></i>ตารางอันดับสถิติออนไลน์
+                                </h4>
+                                <div class="flex flex-wrap gap-1 text-[11px] font-prompt">
+                                    <button onclick="filterModalLeaderboard('ALL')" class="modal-filter-btn px-2 py-0.5 rounded bg-emerald-600 text-white font-medium" data-role="ALL">ทั้งหมด</button>
+                                    <button onclick="filterModalLeaderboard('ป.1')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="ป.1">ป.1</button>
+                                    <button onclick="filterModalLeaderboard('ป.2')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="ป.2">ป.2</button>
+                                    <button onclick="filterModalLeaderboard('ป.3')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="ป.3">ป.3</button>
+                                    <button onclick="filterModalLeaderboard('ป.4')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="ป.4">ป.4</button>
+                                    <button onclick="filterModalLeaderboard('ป.5')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="ป.5">ป.5</button>
+                                    <button onclick="filterModalLeaderboard('ป.6')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="ป.6">ป.6</button>
+                                    <button onclick="filterModalLeaderboard('คุณครู')" class="modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white" data-role="คุณครู">ครู</button>
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto max-h-72">
+                                <table class="w-full text-left text-xs font-prompt">
+                                    <thead class="bg-slate-800/80 text-slate-400 sticky top-0">
+                                        <tr>
+                                            <th class="p-2 text-center w-10">อันดับ</th>
+                                            <th class="p-2">ชื่อผู้เล่น</th>
+                                            <th class="p-2">ชั้น</th>
+                                            <th class="p-2 text-center">จับคู่</th>
+                                            <th class="p-2 text-center">เวลา</th>
+                                            <th class="p-2 text-right">คะแนน</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="modalLeaderboardBody" class="divide-y divide-slate-800 text-slate-200">
+                                        <!-- Injected dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- TAB 2: DATA BREAKDOWN & ANALYTICS -->
+        <section id="tab-analytics" class="tab-content hidden space-y-6">
+            
+            <div class="glass-panel p-6 rounded-3xl border-l-4 border-l-cyan-500">
+                <h2 class="text-xl font-bold font-prompt text-white mb-2">
+                    <i class="fa-solid fa-chart-pie text-cyan-400 mr-2"></i>วิเคราะห์สถิติเวลาการเล่นจริง & แรงค์กิ้งผู้เล่น
+                </h2>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    แสดงการกระจายตัวของช่วงเวลาที่ผู้เล่นใช้จริงในการจับคู่เบี้ยตัวเลข พร้อมตารางจัดอันดับออนไลน์ (Real-time Online Ranking)
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                
+                <!-- Real-Play Time Range Chart View -->
+                <div class="md:col-span-6 glass-panel p-5 rounded-2xl flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-base font-bold font-prompt text-white mb-1">
+                            <i class="fa-solid fa-stopwatch text-emerald-400 mr-2"></i>สัดส่วนช่วงเวลาการเล่นจริง (Completion Time Distribution)
+                        </h3>
+                        <p class="text-xs text-slate-400 mb-4">จัดกลุ่มผู้เล่นจริงตามช่วงเวลาที่ทำภารกิจสำเร็จเพื่อวิเคราะห์ทักษะความเร็ว</p>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="timeDistributionChart"></canvas>
+                    </div>
+
+                    <div id="chartTimeLegend" class="mt-4 grid grid-cols-2 sm:grid-cols-7 gap-1 text-center text-xs font-prompt">
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-emerald-400">&lt; 30 วิ</span>
+                            <span id="countTier1" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-emerald-300">30วิ-1นาที</span>
+                            <span id="countTier2" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-teal-400">1-1.5 นาที</span>
+                            <span id="countTier3" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-cyan-400">1.5-2 นาที</span>
+                            <span id="countTier4" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-blue-400">2-2.5 นาที</span>
+                            <span id="countTier5" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-indigo-400">2.5-3 นาที</span>
+                            <span id="countTier6" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                        <div class="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                            <span class="block font-bold text-amber-400">หมดเวลา</span>
+                            <span id="countTier7" class="text-[10px] text-slate-400">0 คน</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Table View: Dedicated Real Online Leaderboard Hub -->
+                <div class="md:col-span-6 glass-panel p-5 rounded-2xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-base font-bold font-prompt text-white">
+                                <i class="fa-solid fa-ranking-star text-amber-400 mr-2"></i>ตารางสถิติผู้เล่นจริง (Live Leaderboard)
+                            </h3>
+                            <span class="text-xs text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded font-mono border border-emerald-800/50">Real-time Cloud</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">บันทึกสถิติที่ดีที่สุด (Personal Best Record) 1 รายการต่อผู้เล่น</p>
+                        
+                        <!-- Role Filters -->
+                        <div class="flex flex-wrap gap-1.5 mb-3 text-xs font-prompt">
+                            <button onclick="filterMainLeaderboard('ALL')" class="main-filter-btn px-2.5 py-1 rounded-md bg-emerald-600 text-white font-medium" data-role="ALL">ทั้งหมด</button>
+                            <button onclick="filterMainLeaderboard('ป.1')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="ป.1">ป.1</button>
+                            <button onclick="filterMainLeaderboard('ป.2')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="ป.2">ป.2</button>
+                            <button onclick="filterMainLeaderboard('ป.3')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="ป.3">ป.3</button>
+                            <button onclick="filterMainLeaderboard('ป.4')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="ป.4">ป.4</button>
+                            <button onclick="filterMainLeaderboard('ป.5')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="ป.5">ป.5</button>
+                            <button onclick="filterMainLeaderboard('ป.6')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="ป.6">ป.6</button>
+                            <button onclick="filterMainLeaderboard('คุณครู')" class="main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white" data-role="คุณครู">คุณครู</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto max-h-80 rounded-xl border border-slate-800">
+                        <table class="w-full text-left text-xs font-prompt">
+                            <thead class="bg-slate-800 text-slate-300 sticky top-0">
+                                <tr>
+                                    <th class="p-2.5 text-center w-12">อันดับ</th>
+                                    <th class="p-2.5">ผู้เล่น</th>
+                                    <th class="p-2.5">ระดับชั้น</th>
+                                    <th class="p-2.5 text-center">จับคู่สำเร็จ</th>
+                                    <th class="p-2.5 text-center">เวลาที่ใช้</th>
+                                    <th class="p-2.5 text-right">คะแนน</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mainLeaderboardBody" class="divide-y divide-slate-800 bg-slate-900/60 text-slate-200">
+                                <!-- Injected dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- PLAYER REGISTRATION MODAL -->
+    <div id="registerModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 border border-emerald-500/30 shadow-2xl space-y-4">
+            
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 mx-auto flex items-center justify-center text-white text-2xl font-black shadow-lg">
+                    10
+                </div>
+                <h3 class="text-xl font-bold font-prompt text-white">ลงชื่อเข้าใช้งาน / เลือกชั้นเรียน</h3>
+                <p class="text-xs text-slate-300">กรอกชื่อจริงเพื่อบันทึกผลการเล่นจริงสู่ตารางสถิติออนไลน์</p>
+            </div>
+
+            <form onsubmit="handleRegisterSubmit(event)" class="space-y-4 font-prompt">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">ชื่อ-นามสกุล หรือ ชื่อเล่น:</label>
+                    <input type="text" id="inputPlayerName" required placeholder="เช่น น้องกัปตัน, ครูสมชาย" class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">ระดับชั้นเรียน / บทบาท:</label>
+                    <select id="selectPlayerRole" class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none transition">
+                        <option value="ป.1">ประถมศึกษาปีที่ 1 (ป.1)</option>
+                        <option value="ป.2">ประถมศึกษาปีที่ 2 (ป.2)</option>
+                        <option value="ป.3">ประถมศึกษาปีที่ 3 (ป.3)</option>
+                        <option value="ป.4">ประถมศึกษาปีที่ 4 (ป.4)</option>
+                        <option value="ป.5">ประถมศึกษาปีที่ 5 (ป.5)</option>
+                        <option value="ป.6">ประถมศึกษาปีที่ 6 (ป.6)</option>
+                        <option value="คุณครู">คุณครู / ผู้ปกครอง</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+                    <i class="fa-solid fa-check mr-2"></i>ยืนยันเข้าสู่เกม
+                </button>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="no-print bg-slate-900/80 border-t border-slate-800 py-4 mt-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400 font-prompt">
+            <p>สื่อการสอนและบอร์ดเกมคณิตศาสตร์ "จับคู่ กู้เลข 10" — ระบบจัดเก็บสถิติผู้เล่นจริงออนไลน์</p>
+        </div>
+    </footer>
+
+    <!-- FIREBASE MODULE & GAME JAVASCRIPT LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'kru-math-game-10';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db = null;
+        let auth = null;
+        let currentUserAuth = null;
+
+        // Initialize Firebase if config exists
+        if (firebaseConfig) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const initAuth = async () => {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (err) {
+                        console.warn("Auth error, falling back to anonymous auth:", err);
+                        await signInAnonymously(auth);
+                    }
+                };
+
+                initAuth();
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUserAuth = user;
+                    if (user) {
+                        listenToLeaderboardCloud();
+                    }
+                });
+            } catch (e) {
+                console.warn("Firebase initialization skipped:", e);
+            }
+        }
+
+        // Setup real-time listener for cloud leaderboard
+        function listenToLeaderboardCloud() {
+            if (!db || !currentUserAuth) return;
+            const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            onSnapshot(lbRef, (snapshot) => {
+                const cloudData = [];
+                snapshot.forEach((docSnap) => {
+                    cloudData.push(docSnap.data());
+                });
+                
+                // Merge cloud data with existing local storage data
+                const mergedMap = new Map();
+
+                // Add current local data first
+                (window.globalLeaderboard || []).forEach(item => {
+                    if (item && item.name && item.role) {
+                        const key = `${item.name.toLowerCase().trim()}_${item.role}`;
+                        mergedMap.set(key, item);
+                    }
+                });
+
+                // Merge cloud entries
+                cloudData.forEach(item => {
+                    if (item && item.name && item.role) {
+                        const key = `${item.name.toLowerCase().trim()}_${item.role}`;
+                        if (mergedMap.has(key)) {
+                            const existing = mergedMap.get(key);
+                            if (item.score > existing.score || (item.score === existing.score && item.timeSpent < existing.timeSpent)) {
+                                mergedMap.set(key, item);
+                            }
+                        } else {
+                            mergedMap.set(key, item);
+                        }
+                    }
+                });
+
+                const finalLeaderboard = Array.from(mergedMap.values());
+                finalLeaderboard.sort((a, b) => b.score - a.score || a.timeSpent - b.timeSpent);
+
+                window.globalLeaderboard = finalLeaderboard;
+                try {
+                    localStorage.setItem('kru_math_leaderboard', JSON.stringify(finalLeaderboard));
+                } catch (e) {}
+
+                if (typeof window.updateChartsAndLeaderboards === 'function') {
+                    window.updateChartsAndLeaderboards();
+                }
+            }, (error) => {
+                console.error("Leaderboard snapshot error:", error);
+            });
+        }
+
+        // Helper to push record to Cloud Firestore & LocalStorage
+        window.saveRecordToCloud = async function(record) {
+            if (!window.globalLeaderboard) window.globalLeaderboard = [];
+            const key = `${record.name.toLowerCase().trim()}_${record.role}`;
+            const existingIdx = window.globalLeaderboard.findIndex(r => `${r.name.toLowerCase().trim()}_${r.role}` === key);
+            
+            let updated = false;
+            if (existingIdx !== -1) {
+                const prev = window.globalLeaderboard[existingIdx];
+                if (record.score > prev.score || (record.score === prev.score && record.timeSpent < prev.timeSpent)) {
+                    window.globalLeaderboard[existingIdx] = record;
+                    updated = true;
+                }
+            } else {
+                window.globalLeaderboard.push(record);
+                updated = true;
+            }
+
+            if (updated) {
+                window.globalLeaderboard.sort((a, b) => b.score - a.score || a.timeSpent - b.timeSpent);
+                try {
+                    localStorage.setItem('kru_math_leaderboard', JSON.stringify(window.globalLeaderboard));
+                } catch(e) {}
+            }
+
+            if (typeof window.updateChartsAndLeaderboards === 'function') {
+                window.updateChartsAndLeaderboards();
+            }
+
+            if (!db || !currentUserAuth) return;
+
+            try {
+                // Rule 1 strict path: /artifacts/{appId}/public/data/leaderboard/{docId}
+                const docId = `${record.name.trim()}_${record.role}`.replace(/[\/\s]/g, '_');
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', docId);
+                
+                const existingSnap = await getDoc(docRef);
+                if (existingSnap.exists()) {
+                    const prev = existingSnap.data();
+                    if (record.score > prev.score || (record.score === prev.score && record.timeSpent < prev.timeSpent)) {
+                        await setDoc(docRef, record);
+                    }
+                } else {
+                    await setDoc(docRef, record);
+                }
+            } catch (err) {
+                console.error("Cloud save error:", err);
+            }
+        };
+    </script>
+
+    <script>
+        let currentUser = {
+            name: 'นักเรียน',
+            role: 'ป.1'
+        };
+
+        let soundEnabled = true;
+        let timerInterval = null;
+        let timeRemaining = 180;
+        let totalTimeSpent = 0;
+        let gameActive = false;
+
+        let numbersDeck = [];
+        let selectedIndices = [];
+        let matchedCount = 0;
+        let score = 0;
+
+        // Persistent real player data array (from LocalStorage or Cloud)
+        try {
+            const localSaved = localStorage.getItem('kru_math_leaderboard');
+            window.globalLeaderboard = localSaved ? JSON.parse(localSaved) : [];
+        } catch(e) {
+            window.globalLeaderboard = [];
+        }
+
+        let modalLeaderboardFilter = 'ALL';
+        let mainLeaderboardFilter = 'ALL';
+        let timeChartInstance = null;
+
+        // Web Audio Synthesizer
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'match') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    osc.frequency.setValueAtTime(783.99, now + 0.2);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'error') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.setValueAtTime(180, now + 0.1);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'win') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.15);
+                    osc.frequency.setValueAtTime(783.99, now + 0.3);
+                    osc.frequency.setValueAtTime(1046.50, now + 0.45);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+                    osc.start(now);
+                    osc.stop(now + 0.7);
+                }
+            } catch (e) {
+                console.log('Audio playback error:', e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('soundToggleBtn');
+            if (soundEnabled) {
+                btn.innerHTML = `<i class="fa-solid fa-volume-high mr-1.5 text-emerald-400"></i>เสียง: เปิด`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-volume-xmark mr-1.5 text-slate-400"></i>เสียง: ปิด`;
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSavedUser();
+            generate52Deck();
+            renderBoard();
+            initTimeChart();
+            renderMainLeaderboard();
+        });
+
+        function switchTab(tabKey) {
+            playSound('click');
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabKey}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-emerald-400', 'bg-slate-800', 'border', 'border-emerald-500/30');
+                btn.classList.add('text-slate-300');
+            });
+            const activeNav = document.getElementById(`nav-${tabKey}`);
+            if (activeNav) {
+                activeNav.classList.add('text-emerald-400', 'bg-slate-800', 'border', 'border-emerald-500/30');
+            }
+
+            document.querySelectorAll('.mob-nav-btn').forEach(btn => {
+                btn.classList.remove('text-emerald-400', 'bg-slate-800');
+                btn.classList.add('text-slate-300');
+            });
+            const activeMobNav = document.getElementById(`mob-nav-${tabKey}`);
+            if (activeMobNav) {
+                activeMobNav.classList.add('text-emerald-400', 'bg-slate-800');
+            }
+
+            if (tabKey === 'analytics') {
+                setTimeout(() => {
+                    updateTimeChartData();
+                    renderMainLeaderboard();
+                }, 100);
+            }
+        }
+
+        function generate52Deck() {
+            const basePairs = [
+                ...Array(5).fill([1, 9]).flat(),
+                ...Array(5).fill([2, 8]).flat(),
+                ...Array(5).fill([3, 7]).flat(),
+                ...Array(5).fill([4, 6]).flat(),
+                ...Array(6).fill([5, 5]).flat()
+            ];
+
+            numbersDeck = [...basePairs];
+            for (let i = numbersDeck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [numbersDeck[i], numbersDeck[j]] = [numbersDeck[j], numbersDeck[i]];
+            }
+        }
+
+        function renderBoard() {
+            const grid = document.getElementById('numbersGrid');
+            grid.innerHTML = '';
+
+            numbersDeck.forEach((num, index) => {
+                const tile = document.createElement('button');
+                tile.id = `tile-${index}`;
+                tile.className = `w-full aspect-square bg-slate-800 hover:bg-slate-750 border-2 border-slate-700 hover:border-emerald-500/50 rounded-lg sm:rounded-xl flex items-center justify-center font-extrabold text-sm sm:text-xl md:text-2xl font-prompt text-emerald-400 cursor-pointer transition-all duration-150 shadow-md select-none`;
+                
+                tile.innerHTML = `<span>${num}</span>`;
+                tile.onclick = () => handleTileClick(index);
+                grid.appendChild(tile);
+            });
+        }
+
+        function handleTileClick(index) {
+            if (!gameActive) {
+                startTimer();
+                gameActive = true;
+            }
+
+            const tileElem = document.getElementById(`tile-${index}`);
+            if (!tileElem || tileElem.classList.contains('tile-matched')) return;
+
+            if (selectedIndices.includes(index)) {
+                selectedIndices = selectedIndices.filter(i => i !== index);
+                tileElem.classList.remove('tile-selected');
+                playSound('click');
+                return;
+            }
+
+            selectedIndices.push(index);
+            tileElem.classList.add('tile-selected');
+            playSound('click');
+
+            if (selectedIndices.length === 2) {
+                const [idx1, idx2] = selectedIndices;
+                const val1 = numbersDeck[idx1];
+                const val2 = numbersDeck[idx2];
+
+                if (val1 + val2 === 10) {
+                    playSound('match');
+                    setTimeout(() => {
+                        document.getElementById(`tile-${idx1}`).classList.add('tile-matched');
+                        document.getElementById(`tile-${idx2}`).classList.add('tile-matched');
+                        matchedCount++;
+                        score += 100;
+                        updateStatsDisplay();
+
+                        if (matchedCount === 26) {
+                            endGame(true);
+                        }
+                    }, 200);
+                } else {
+                    playSound('error');
+                    setTimeout(() => {
+                        const t1 = document.getElementById(`tile-${idx1}`);
+                        const t2 = document.getElementById(`tile-${idx2}`);
+                        if (t1) t1.classList.remove('tile-selected');
+                        if (t2) t2.classList.remove('tile-selected');
+                    }, 400);
+                }
+
+                selectedIndices = [];
+            }
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                totalTimeSpent++;
+                updateTimerDisplay();
+
+                if (timeRemaining <= 0) {
+                    endGame(false);
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timeRemaining / 60);
+            const secs = timeRemaining % 60;
+            const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            document.getElementById('timerDisplay').innerText = formatted;
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('matchedCountDisplay').innerText = `${matchedCount} / 26 คู่`;
+            const remElem = document.getElementById('remainingTilesDisplay');
+            if (remElem) remElem.innerText = `${52 - (matchedCount * 2)} ช่อง`;
+            document.getElementById('scoreDisplay').innerText = `${score} คะแนน`;
+        }
+
+        function resetGame() {
+            if (timerInterval) clearInterval(timerInterval);
+            gameActive = false;
+            timeRemaining = 180;
+            totalTimeSpent = 0;
+            matchedCount = 0;
+            score = 0;
+            selectedIndices = [];
+
+            updateTimerDisplay();
+            updateStatsDisplay();
+            generate52Deck();
+            renderBoard();
+        }
+
+        function endGame(isWin) {
+            if (timerInterval) clearInterval(timerInterval);
+            gameActive = false;
+
+            let finalScore = score;
+            if (isWin) {
+                playSound('win');
+                const timeBonus = timeRemaining * 10;
+                finalScore += timeBonus;
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            } else {
+                playSound('error');
+            }
+
+            const record = {
+                id: Date.now().toString(),
+                name: currentUser.name,
+                role: currentUser.role,
+                matched: matchedCount,
+                timeSpent: totalTimeSpent,
+                score: finalScore,
+                isWin: isWin,
+                timestamp: Date.now()
+            };
+
+            // Save Real Record Online
+            if (typeof window.saveRecordToCloud === 'function') {
+                window.saveRecordToCloud(record);
+            }
+
+            // Populate Modal Results
+            document.getElementById('resultTitle').innerText = isWin ? 'ยอดเยี่ยมมาก! กู้เลข 10 สำเร็จ 🎉' : 'หมดเวลาแล้ว! พยายามได้ดีมาก ⏰';
+            document.getElementById('resultIcon').innerText = isWin ? '🏆' : '⏳';
+            document.getElementById('modalPlayerName').innerText = currentUser.name;
+            document.getElementById('modalPlayerRole').innerText = currentUser.role;
+            document.getElementById('modalMatchedPairs').innerText = `${matchedCount} / 26 คู่`;
+            
+            const minsSpent = Math.floor(totalTimeSpent / 60);
+            const secsSpent = totalTimeSpent % 60;
+            document.getElementById('modalTimeSpent').innerText = minsSpent > 0 ? `${minsSpent} นาที ${secsSpent} วินาที` : `${secsSpent} วินาที`;
+            document.getElementById('modalFinalScore').innerText = finalScore.toLocaleString();
+
+            renderModalLeaderboard();
+            document.getElementById('gameResultModal').classList.remove('hidden');
+        }
+
+        function closeResultModal() {
+            document.getElementById('gameResultModal').classList.add('hidden');
+        }
+
+        function loadSavedUser() {
+            const saved = localStorage.getItem('kru_math_user_profile');
+            if (saved) {
+                try {
+                    currentUser = JSON.parse(saved);
+                } catch(e) {}
+            }
+            updateUserDisplay();
+        }
+
+        function updateUserDisplay() {
+            document.getElementById('userDisplayName').innerText = currentUser.name;
+            document.getElementById('userDisplayRole').innerText = currentUser.role;
+        }
+
+        function openRegisterModal() {
+            document.getElementById('inputPlayerName').value = currentUser.name !== 'นักเรียน' ? currentUser.name : '';
+            document.getElementById('selectPlayerRole').value = currentUser.role;
+            document.getElementById('registerModal').classList.remove('hidden');
+        }
+
+        function handleRegisterSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('inputPlayerName').value.trim();
+            const role = document.getElementById('selectPlayerRole').value;
+
+            if (name) {
+                currentUser.name = name;
+                currentUser.role = role;
+                localStorage.setItem('kru_math_user_profile', JSON.stringify(currentUser));
+                updateUserDisplay();
+                document.getElementById('registerModal').classList.add('hidden');
+                playSound('click');
+            }
+        }
+
+        function renderModalLeaderboard() {
+            const tbody = document.getElementById('modalLeaderboardBody');
+            tbody.innerHTML = '';
+
+            const filtered = window.globalLeaderboard.filter(item => modalLeaderboardFilter === 'ALL' || item.role === modalLeaderboardFilter);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">ยังไม่มีสถิติในหมวดหมู่นี้</td></tr>`;
+                return;
+            }
+
+            filtered.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = index < 3 ? 'bg-slate-800/40 font-semibold' : 'hover:bg-slate-800/20';
+                
+                let medal = `${index + 1}`;
+                if (index === 0) medal = '🥇';
+                if (index === 1) medal = '🥈';
+                if (index === 2) medal = '🥉';
+
+                const mins = Math.floor(item.timeSpent / 60);
+                const secs = item.timeSpent % 60;
+                const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+                tr.innerHTML = `
+                    <td class="p-2 text-center font-bold text-amber-400">${medal}</td>
+                    <td class="p-2 text-white">${escapeHtml(item.name)}</td>
+                    <td class="p-2"><span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300 border border-slate-700">${item.role}</span></td>
+                    <td class="p-2 text-center text-cyan-300">${item.matched}/26</td>
+                    <td class="p-2 text-center text-slate-400">${timeStr}</td>
+                    <td class="p-2 text-right font-bold text-emerald-400">${item.score.toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterModalLeaderboard(role) {
+            modalLeaderboardFilter = role;
+            document.querySelectorAll('.modal-filter-btn').forEach(btn => {
+                if (btn.dataset.role === role) {
+                    btn.className = 'modal-filter-btn px-2 py-0.5 rounded bg-emerald-600 text-white font-medium';
+                } else {
+                    btn.className = 'modal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white';
+                }
+            });
+            renderModalLeaderboard();
+        }
+
+        function renderMainLeaderboard() {
+            const tbody = document.getElementById('mainLeaderboardBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const filtered = window.globalLeaderboard.filter(item => mainLeaderboardFilter === 'ALL' || item.role === mainLeaderboardFilter);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">ยังไม่มีข้อมูลสถิติ กรุณาลงชื่อและเริ่มเล่นเกมเพื่อบันทึกสถิติแรกออนไลน์!</td></tr>`;
+                return;
+            }
+
+            filtered.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+
+                let medal = `${index + 1}`;
+                if (index === 0) medal = '🥇';
+                if (index === 1) medal = '🥈';
+                if (index === 2) medal = '🥉';
+
+                const mins = Math.floor(item.timeSpent / 60);
+                const secs = item.timeSpent % 60;
+                const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+                tr.innerHTML = `
+                    <td class="p-2.5 text-center font-bold text-amber-400">${medal}</td>
+                    <td class="p-2.5 text-white font-medium">${escapeHtml(item.name)}</td>
+                    <td class="p-2.5"><span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-emerald-300 border border-slate-700">${item.role}</span></td>
+                    <td class="p-2.5 text-center text-cyan-300 font-bold">${item.matched}/26</td>
+                    <td class="p-2.5 text-center text-slate-400">${timeStr}</td>
+                    <td class="p-2.5 text-right font-bold text-emerald-400">${item.score.toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterMainLeaderboard(role) {
+            mainLeaderboardFilter = role;
+            document.querySelectorAll('.main-filter-btn').forEach(btn => {
+                if (btn.dataset.role === role) {
+                    btn.className = 'main-filter-btn px-2.5 py-1 rounded-md bg-emerald-600 text-white font-medium';
+                } else {
+                    btn.className = 'main-filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 hover:text-white';
+                }
+            });
+            renderMainLeaderboard();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Global function to update leaderboards and time distribution chart
+        window.updateChartsAndLeaderboards = function() {
+            updateTimeChartData();
+            renderMainLeaderboard();
+            renderModalLeaderboard();
+        };
+
+        function initTimeChart() {
+            const ctx = document.getElementById('timeDistributionChart').getContext('2d');
+            timeChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['< 30 วินาที', '30วิ - 1 นาที', '1 - 1.5 นาที', '1.5 - 2 นาที', '2 - 2.5 นาที', '2.5 - 3 นาที', 'หมดเวลา'],
+                    datasets: [{
+                        label: 'จำนวนผู้เล่น (คน)',
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        backgroundColor: [
+                            '#10b981', // Emerald (< 30s)
+                            '#34d399', // Mint (30s-1m)
+                            '#14b8a6', // Teal (1-1.5m)
+                            '#06b6d4', // Cyan (1.5-2m)
+                            '#3b82f6', // Blue (2-2.5m)
+                            '#6366f1', // Indigo (2.5-3m)
+                            '#f59e0b'  // Amber (Timeout)
+                        ],
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: '#1e293b'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ผู้เล่นในช่วงเวลานี้: ${context.parsed.y} คน`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                color: '#94a3b8',
+                                font: { family: 'Prompt', size: 10 }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#cbd5e1',
+                                font: { family: 'Prompt', size: 10 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            updateTimeChartData();
+        }
+
+        function updateTimeChartData() {
+            if (!timeChartInstance) return;
+
+            let t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0;
+
+            window.globalLeaderboard.forEach(item => {
+                if (item.matched < 26 || item.timeSpent >= 180) {
+                    t7++;
+                } else if (item.timeSpent < 30) {
+                    t1++;
+                } else if (item.timeSpent < 60) {
+                    t2++;
+                } else if (item.timeSpent <= 90) {
+                    t3++;
+                } else if (item.timeSpent <= 120) {
+                    t4++;
+                } else if (item.timeSpent <= 150) {
+                    t5++;
+                } else {
+                    t6++;
+                }
+            });
+
+            timeChartInstance.data.datasets[0].data = [t1, t2, t3, t4, t5, t6, t7];
+            timeChartInstance.update();
+
+            // Update UI Counters below chart
+            document.getElementById('countTier1').innerText = `${t1} คน`;
+            document.getElementById('countTier2').innerText = `${t2} คน`;
+            document.getElementById('countTier3').innerText = `${t3} คน`;
+            document.getElementById('countTier4').innerText = `${t4} คน`;
+            document.getElementById('countTier5').innerText = `${t5} คน`;
+            document.getElementById('countTier6').innerText = `${t6} คน`;
+            document.getElementById('countTier7').innerText = `${t7} คน`;
+        }
+    </script>
+</body>
+</html>
